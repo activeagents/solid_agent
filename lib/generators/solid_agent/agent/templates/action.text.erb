@@ -1,0 +1,10 @@
+<%% # Action: <%= config[:action_name] %> %>
+<%% # This template is rendered as the user message for the prompt %>
+
+<%% if @content.present? %>
+Please process the following content:
+
+<%%= @content %>
+<%% else %>
+Please help me with my request.
+<%% end %>

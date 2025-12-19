@@ -1,0 +1,38 @@
+# frozen_string_literal: true
+
+class CreateAgentGenerations < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :agent_generations do |t|
+      t.references :agent_context, null: false, foreign_key: true, index: true
+
+      # The assistant's response content
+      t.text :content
+
+      # Model information
+      t.string :model
+      t.string :provider
+
+      # Finish reason: stop, tool_calls, length, etc.
+      t.string :finish_reason
+
+      # Token usage for this generation
+      t.integer :input_tokens, default: 0
+      t.integer :output_tokens, default: 0
+
+      # Tool calls made in this generation
+      t.jsonb :tool_calls, default: []
+
+      # Raw response from the provider (for debugging)
+      t.jsonb :raw_response
+
+      # Timing
+      t.float :duration_seconds
+
+      t.timestamps
+    end
+
+    add_index :agent_generations, :model
+    add_index :agent_generations, :finish_reason
+    add_index :agent_generations, [:agent_context_id, :created_at]
+  end
+end

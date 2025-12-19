@@ -1,0 +1,32 @@
+# frozen_string_literal: true
+
+class CreateAgentContexts < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :agent_contexts do |t|
+      # Polymorphic association to any model (User, Document, etc.)
+      t.references :contextable, polymorphic: true, index: true
+
+      # Agent identification
+      t.string :agent_name, null: false
+      t.string :action_name, null: false
+
+      # System instructions for the conversation
+      t.text :instructions
+
+      # Flexible options storage (input_params, model settings, etc.)
+      t.jsonb :options, default: {}
+
+      # Tracing/debugging
+      t.string :trace_id, index: true
+
+      # Token usage tracking
+      t.integer :total_input_tokens, default: 0
+      t.integer :total_output_tokens, default: 0
+
+      t.timestamps
+    end
+
+    add_index :agent_contexts, [:agent_name, :action_name]
+    add_index :agent_contexts, :created_at
+  end
+end

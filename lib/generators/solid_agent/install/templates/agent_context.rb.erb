@@ -1,0 +1,128 @@
+# frozen_string_literal: true
+
+# AgentContext stores conversation context for AI agents.
+#
+# Each context represents a single conversation or task session,
+# tracking messages, generations, and metadata.
+#
+# @example Creating a context for a user
+#   context = AgentContext.create!(
+#     contextable: current_user,
+#     agent_name: "WritingAssistantAgent",
+#     action_name: "improve"
+#   )
+#
+# @example Finding contexts for a record
+#   user.agent_contexts.recent.each do |context|
+#     puts "#{context.agent_name}##{context.action_name}: #{context.messages.count} messages"
+#   end
+#
+class AgentContext < ApplicationRecord
+  # Associations
+  belongs_to :contextable, polymorphic: true, optional: true
+  has_many :messages, class_name: "AgentMessage", dependent: :destroy
+  has_many :generations, class_name: "AgentGeneration", dependent: :destroy
+
+  # Validations
+  validates :agent_name, presence: true
+  validates :action_name, presence: true
+
+  # Scopes
+  scope :recent, -> { order(created_at: :desc) }
+  scope :for_agent, ->(name) { where(agent_name: name) }
+  scope :for_action, ->(name) { where(action_name: name) }
+  scope :with_trace, ->(trace_id) { where(trace_id: trace_id) }
+
+  # Convenience method to get input_params from options
+  def input_params
+    options&.dig("input_params") || options&.dig(:input_params) || {}
+  end
+
+  # Records a generation response and updates token counts
+  #
+  # @param response [ActiveAgent::GenerationResponse] the generation response
+  # @return [AgentGeneration] the created generation record
+  def record_generation!(response)
+    generation = generations.create!(
+      content: response.message&.content,
+      model: response.model,
+      provider: response.provider,
+      finish_reason: response.finish_reason,
+      input_tokens: response.usage&.input_tokens || 0,
+      output_tokens: response.usage&.output_tokens || 0,
+      tool_calls: extract_tool_calls(response),
+      raw_response: response.raw_response,
+      duration_seconds: response.duration
+    )
+
+    # Update cumulative token counts
+    increment!(:total_input_tokens, generation.input_tokens)
+    increment!(:total_output_tokens, generation.output_tokens)
+
+    # Also add assistant message to the conversation
+    add_assistant_message(response.message&.content, tool_calls: generation.tool_calls)
+
+    generation
+  end
+
+  # Adds a user message to the context
+  #
+  # @param content [String] the message content
+  # @param attributes [Hash] additional attributes
+  # @return [AgentMessage] the created message
+  def add_user_message(content, **attributes)
+    messages.create!(role: "user", content: content, **attributes)
+  end
+
+  # Adds an assistant message to the context
+  #
+  # @param content [String] the message content
+  # @param attributes [Hash] additional attributes
+  # @return [AgentMessage] the created message
+  def add_assistant_message(content, **attributes)
+    messages.create!(role: "assistant", content: content, **attributes)
+  end
+
+  # Adds a system message to the context
+  #
+  # @param content [String] the message content
+  # @return [AgentMessage] the created message
+  def add_system_message(content)
+    messages.create!(role: "system", content: content)
+  end
+
+  # Adds a tool result message to the context
+  #
+  # @param tool_call_id [String] the ID of the tool call
+  # @param tool_name [String] the name of the tool
+  # @param result [Hash, String] the tool result
+  # @return [AgentMessage] the created message
+  def add_tool_message(tool_call_id:, tool_name:, result:)
+    messages.create!(
+      role: "tool",
+      tool_call_id: tool_call_id,
+      tool_name: tool_name,
+      tool_result: result,
+      content: result.is_a?(String) ? result : result.to_json
+    )
+  end
+
+  # Returns total token count
+  def total_tokens
+    total_input_tokens + total_output_tokens
+  end
+
+  private
+
+  def extract_tool_calls(response)
+    return [] unless response.message&.tool_calls.present?
+
+    response.message.tool_calls.map do |tc|
+      {
+        id: tc.id,
+        name: tc.name,
+        arguments: tc.arguments
+      }
+    end
+  end
+end

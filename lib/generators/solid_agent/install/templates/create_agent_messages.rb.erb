@@ -1,0 +1,33 @@
+# frozen_string_literal: true
+
+class CreateAgentMessages < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :agent_messages do |t|
+      t.references :agent_context, null: false, foreign_key: true, index: true
+
+      # Message role: user, assistant, system, tool
+      t.string :role, null: false
+
+      # Message content (text content for the message)
+      t.text :content
+
+      # For tool calls and results
+      t.string :tool_call_id
+      t.string :tool_name
+      t.jsonb :tool_arguments, default: {}
+      t.jsonb :tool_result
+
+      # For multimodal content (images, files)
+      t.jsonb :attachments, default: []
+
+      # Metadata
+      t.jsonb :metadata, default: {}
+
+      t.timestamps
+    end
+
+    add_index :agent_messages, :role
+    add_index :agent_messages, :tool_call_id
+    add_index :agent_messages, [:agent_context_id, :created_at]
+  end
+end
