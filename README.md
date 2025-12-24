@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/solid_agent.png" alt="SolidAgent" width="200">
+</p>
+
 # SolidAgent
 
 SolidAgent extends the [ActiveAgent](https://github.com/activeagents/activeagent) framework with enterprise-grade features for building robust AI agents in Rails applications. It provides three core concerns that add database-backed persistence, declarative tool schemas, and real-time streaming capabilities to your agents.
@@ -123,8 +127,8 @@ $ rails generate solid_agent:context conversation
 
 See SolidAgent in action:
 
-- [Fizzy](https://github.com/tonsoffun/fizzy) - Demo application showcasing SolidAgent features
-- [Writebook](https://github.com/tonsoffun/writebook) - Writing assistant powered by SolidAgent
+- [Fizzy](https://github.com/tonsoffun/fizzy) - AI-enhanced Kanban tracking tool with writing, research, and file analysis agents
+- [Writebook](https://github.com/tonsoffun/writebook) - Collaborative writing platform with integrated AI writing assistance, research, and document analysis
 
 ## Development
 
