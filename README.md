@@ -1,24 +1,123 @@
 # SolidAgent
 
-TODO: Delete this and the text below, and describe your gem
+SolidAgent extends the [ActiveAgent](https://github.com/activeagents/activeagent) framework with enterprise-grade features for building robust AI agents in Rails applications. It provides three core concerns that add database-backed persistence, declarative tool schemas, and real-time streaming capabilities to your agents.
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/solid_agent`. To experiment with that code, run `bin/console` for an interactive prompt.
+## Features
+
+- **HasContext** - Database-backed prompt context management for maintaining conversation history and agent state
+- **HasTools** - Declarative, schema-based tool definitions compatible with LLM function-calling APIs
+- **StreamsToolUpdates** - Real-time UI feedback during tool execution via ActionCable
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
+Add this line to your application's Gemfile:
 
-Install the gem and add to the application's Gemfile by executing:
+```ruby
+gem "solid_agent"
+```
 
-    $ bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+And then execute:
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+```bash
+$ bundle install
+```
 
-    $ gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+Or install it yourself as:
+
+```bash
+$ gem install solid_agent
+```
 
 ## Usage
 
-TODO: Write usage instructions here
+### Quick Start
+
+Generate a new agent with context support:
+
+```bash
+$ rails generate solid_agent:agent WritingAssistant --context --context_name conversation --contextable user
+```
+
+### HasContext - Persistent Conversation History
+
+Add database-backed context management to your agents:
+
+```ruby
+class WritingAssistantAgent < ApplicationAgent
+  include SolidAgent::HasContext
+
+  has_context :conversation, contextable: :user
+
+  def improve
+    load_conversation(contextable: current_user)
+    add_conversation_user_message(params[:message])
+    prompt messages: conversation_messages
+  end
+end
+```
+
+This generates helper methods like:
+- `load_conversation(contextable:)` - Load or create a context
+- `conversation_messages` - Get formatted message history
+- `add_conversation_user_message(content)` - Add a user message
+- `add_conversation_assistant_message(content)` - Add an AI response
+- `conversation_result` - Get the last assistant message
+
+### HasTools - Declarative Tool Schemas
+
+Define tools inline with a clean DSL:
+
+```ruby
+class ResearchAgent < ApplicationAgent
+  include SolidAgent::HasTools
+
+  tool :search do
+    description "Search for information"
+    parameter :query, type: :string, required: true
+    parameter :limit, type: :integer, default: 10
+  end
+
+  def research
+    prompt tools: tools
+  end
+
+  def search(query:, limit: 10)
+    # Tool implementation
+  end
+end
+```
+
+Or use JSON templates in `app/views/research_agent/tools/search.json.erb`.
+
+### StreamsToolUpdates - Real-Time Feedback
+
+Broadcast tool execution status to your UI:
+
+```ruby
+class BrowserAgent < ApplicationAgent
+  include SolidAgent::HasTools
+  include SolidAgent::StreamsToolUpdates
+
+  has_tools :navigate, :click
+  tool_description :navigate, ->(args) { "Visiting #{args[:url]}..." }
+end
+```
+
+### Generators
+
+```bash
+# Generate a new agent
+$ rails generate solid_agent:agent MyAgent
+
+# Generate with context support
+$ rails generate solid_agent:agent MyAgent --context --context_name session
+
+# Generate a tool template
+$ rails generate solid_agent:tool search MyAgent --parameters query:string:required
+
+# Generate context models
+$ rails generate solid_agent:context conversation
+```
 
 ## Development
 
