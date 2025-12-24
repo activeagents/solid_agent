@@ -19,7 +19,12 @@ class <%= class_name %>Agent < <%= @parent_class %>
 
 <%- if @include_context -%>
   # Enable database-backed context persistence
-  has_context
+  # Context is auto-created from params[:<%= @contextable || 'contextable' %>]
+<%- if @context_name -%>
+  has_context :<%= @context_name %>, contextable: :<%= @contextable || 'contextable' %>
+<%- else -%>
+  has_context contextable: :<%= @contextable || 'contextable' %>
+<%- end -%>
 <%- end -%>
 
 <%- if @include_tools -%>
@@ -48,19 +53,11 @@ class <%= class_name %>Agent < <%= @parent_class %>
 <%- @actions.each do |action| -%>
   # Action: <%= action %>
   def <%= action %>
-<%- if @include_context -%>
-    # Create context for audit trail
-    create_context(
-      contextable: params[:contextable],
-      input_params: { content: params[:content] }
-    )
-
-<%- end -%>
 <%- if @include_tools -%>
-    # Include tools in the prompt
+    # Include tools in the prompt (context auto-created)
     prompt(tools: tools, tool_choice: "auto")
 <%- else -%>
-    # Render the action template
+    # Render the action template (context auto-created)
     prompt
 <%- end -%>
   end

@@ -1,0 +1,47 @@
+# frozen_string_literal: true
+
+# <%= message_class_name %> stores individual messages within a <%= context_name %>.
+#
+class <%= message_class_name %> < ApplicationRecord
+  # Associations
+  belongs_to :<%= file_name %>
+
+  # Validations
+  validates :role, presence: true, inclusion: { in: %w[user assistant system tool] }
+
+  # Scopes
+  scope :by_role, ->(role) { where(role: role) }
+  scope :user_messages, -> { by_role("user") }
+  scope :assistant_messages, -> { by_role("assistant") }
+  scope :system_messages, -> { by_role("system") }
+  scope :tool_messages, -> { by_role("tool") }
+  scope :chronological, -> { order(created_at: :asc) }
+
+  # Converts the message to a hash format for ActiveAgent prompts
+  def to_message_hash
+    hash = { role: role, content: content }
+
+    if role == "assistant" && tool_calls_data.present?
+      hash[:tool_calls] = tool_calls_data
+    end
+
+    if role == "tool"
+      hash[:tool_call_id] = tool_call_id
+      hash[:name] = tool_name
+    end
+
+    hash
+  end
+
+  def tool_calls_data
+    metadata&.dig("tool_calls") || []
+  end
+
+  def tool_call?
+    role == "assistant" && tool_calls_data.present?
+  end
+
+  def tool_result?
+    role == "tool"
+  end
+end

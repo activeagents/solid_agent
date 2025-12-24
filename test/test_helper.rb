@@ -236,11 +236,16 @@ module SolidAgentTestHelpers
   # Mock context model
   class MockAgentContext
     attr_accessor :id, :contextable, :agent_name, :action_name, :instructions,
-                  :options, :trace_id, :messages, :generations, :input_params
+                  :options, :trace_id, :messages, :generations, :input_params,
+                  :created_at, :updated_at, :total_input_tokens, :total_output_tokens
 
     def initialize(attrs = {})
       @messages = []
       @generations = []
+      @created_at = Time.now
+      @updated_at = Time.now
+      @total_input_tokens = 0
+      @total_output_tokens = 0
       attrs.each do |key, value|
         send(:"#{key}=", value) if respond_to?(:"#{key}=")
       end
@@ -248,6 +253,10 @@ module SolidAgentTestHelpers
       if @options.is_a?(Hash) && @options[:input_params]
         @input_params = @options[:input_params]
       end
+    end
+
+    def total_tokens
+      (total_input_tokens || 0) + (total_output_tokens || 0)
     end
 
     def self.find(id)
@@ -388,6 +397,28 @@ class String
       .downcase
   end
 
+  def camelize
+    split("_").map(&:capitalize).join
+  end
+
+  def singularize
+    # Simple singularize for testing
+    # Words ending in 'sis' should not be singularized (analysis, basis, etc.)
+    if end_with?("ies")
+      self[0..-4] + "y"
+    elsif end_with?("ses") && !end_with?("sis")
+      self[0..-3]
+    elsif end_with?("xes")
+      self[0..-3]
+    elsif end_with?("sis") || end_with?("ss")
+      self
+    elsif end_with?("s")
+      self[0..-2]
+    else
+      self
+    end
+  end
+
   def humanize
     gsub(/_/, " ").capitalize
   end
@@ -401,6 +432,10 @@ class String
       constant = constant.const_get(name)
     end
     constant
+  end
+
+  def delete_suffix(suffix)
+    end_with?(suffix) ? self[0...-suffix.length] : self.dup
   end
 end
 

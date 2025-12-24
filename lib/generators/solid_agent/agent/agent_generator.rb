@@ -12,6 +12,12 @@ module SolidAgent
       class_option :context, type: :boolean, default: true,
         desc: "Include HasContext concern"
 
+      class_option :context_name, type: :string, default: nil,
+        desc: "Custom context name (e.g., 'conversation', 'research_session')"
+
+      class_option :contextable, type: :string, default: nil,
+        desc: "Param key for auto-context (e.g., 'user', 'document')"
+
       class_option :tools, type: :boolean, default: false,
         desc: "Include HasTools concern"
 
@@ -27,6 +33,8 @@ module SolidAgent
       def create_agent_file
         @parent_class = options[:parent]
         @include_context = options[:context]
+        @context_name = options[:context_name]
+        @contextable = options[:contextable]
         @include_tools = options[:tools]
         @include_streaming = options[:streaming]
         @actions = options[:actions]

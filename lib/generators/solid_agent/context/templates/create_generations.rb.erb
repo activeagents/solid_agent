@@ -1,0 +1,38 @@
+# frozen_string_literal: true
+
+class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :<%= generation_table_name %> do |t|
+      t.references :<%= file_name %>, null: false, foreign_key: true, index: true
+
+      # The assistant's response content
+      t.text :content
+
+      # Model information
+      t.string :model
+      t.string :provider
+
+      # Finish reason: stop, tool_calls, length, etc.
+      t.string :finish_reason
+
+      # Token usage for this generation
+      t.integer :input_tokens, default: 0
+      t.integer :output_tokens, default: 0
+
+      # Tool calls made in this generation
+      t.jsonb :tool_calls, default: []
+
+      # Raw response from the provider
+      t.jsonb :raw_response
+
+      # Timing
+      t.float :duration_seconds
+
+      t.timestamps
+    end
+
+    add_index :<%= generation_table_name %>, :model
+    add_index :<%= generation_table_name %>, :finish_reason
+    add_index :<%= generation_table_name %>, [:<%= file_name %>_id, :created_at]
+  end
+end

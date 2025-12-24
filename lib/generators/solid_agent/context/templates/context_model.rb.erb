@@ -1,0 +1,100 @@
+# frozen_string_literal: true
+
+# <%= class_name %> stores context for <%= context_name %>-based agent interactions.
+#
+# @example Creating a <%= context_name %> for a user
+#   <%= context_name %> = <%= class_name %>.create!(
+#     contextable: current_user,
+#     agent_name: "MyAgent",
+#     action_name: "perform"
+#   )
+#
+# @example Using with has_context
+#   class MyAgent < ApplicationAgent
+#     include SolidAgent::HasContext
+#     has_context :<%= context_name %>
+#
+#     def perform
+#       create_<%= context_name %>(contextable: params[:user])
+#       prompt
+#     end
+#   end
+#
+class <%= class_name %> < ApplicationRecord
+  # Associations
+  belongs_to :contextable, polymorphic: true, optional: true
+  has_many :messages, class_name: "<%= message_class_name %>", dependent: :destroy
+  has_many :generations, class_name: "<%= generation_class_name %>", dependent: :destroy
+
+  # Validations
+  validates :agent_name, presence: true
+  validates :action_name, presence: true
+
+  # Scopes
+  scope :recent, -> { order(created_at: :desc) }
+  scope :for_agent, ->(name) { where(agent_name: name) }
+  scope :for_action, ->(name) { where(action_name: name) }
+
+  # Convenience method to get input_params from options
+  def input_params
+    options&.dig("input_params") || options&.dig(:input_params) || {}
+  end
+
+  # Records a generation response and updates token counts
+  def record_generation!(response)
+    generation = generations.create!(
+      content: response.message&.content,
+      model: response.model,
+      provider: response.provider,
+      finish_reason: response.finish_reason,
+      input_tokens: response.usage&.input_tokens || 0,
+      output_tokens: response.usage&.output_tokens || 0,
+      tool_calls: extract_tool_calls(response),
+      raw_response: response.raw_response,
+      duration_seconds: response.duration
+    )
+
+    increment!(:total_input_tokens, generation.input_tokens)
+    increment!(:total_output_tokens, generation.output_tokens)
+
+    add_assistant_message(response.message&.content, tool_calls: generation.tool_calls)
+
+    generation
+  end
+
+  def add_user_message(content, **attributes)
+    messages.create!(role: "user", content: content, **attributes)
+  end
+
+  def add_assistant_message(content, **attributes)
+    messages.create!(role: "assistant", content: content, **attributes)
+  end
+
+  def add_system_message(content)
+    messages.create!(role: "system", content: content)
+  end
+
+  def add_tool_message(tool_call_id:, tool_name:, result:)
+    messages.create!(
+      role: "tool",
+      tool_call_id: tool_call_id,
+      tool_name: tool_name,
+      tool_result: result,
+      content: result.is_a?(String) ? result : result.to_json
+    )
+  end
+
+  def total_tokens
+    total_input_tokens + total_output_tokens
+  end
+
+  private
+
+  def extract_tool_calls(response)
+    return [] unless response.message&.tool_calls.present?
+
+    response.message.tool_calls.map do |tc|
+      { id: tc.id, name: tc.name, arguments: tc.arguments }
+    end
+  end
+end

@@ -1,0 +1,33 @@
+# frozen_string_literal: true
+
+class Create<%= message_class_name.pluralize %> < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :<%= message_table_name %> do |t|
+      t.references :<%= file_name %>, null: false, foreign_key: true, index: true
+
+      # Message role: user, assistant, system, tool
+      t.string :role, null: false
+
+      # Message content
+      t.text :content
+
+      # For tool calls and results
+      t.string :tool_call_id
+      t.string :tool_name
+      t.jsonb :tool_arguments, default: {}
+      t.jsonb :tool_result
+
+      # For multimodal content
+      t.jsonb :attachments, default: []
+
+      # Metadata
+      t.jsonb :metadata, default: {}
+
+      t.timestamps
+    end
+
+    add_index :<%= message_table_name %>, :role
+    add_index :<%= message_table_name %>, :tool_call_id
+    add_index :<%= message_table_name %>, [:<%= file_name %>_id, :created_at]
+  end
+end
