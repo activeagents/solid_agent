@@ -119,6 +119,13 @@ $ rails generate solid_agent:tool search MyAgent --parameters query:string:requi
 $ rails generate solid_agent:context conversation
 ```
 
+## Example Apps
+
+See SolidAgent in action:
+
+- [Fizzy](https://github.com/tonsoffun/fizzy) - Demo application showcasing SolidAgent features
+- [Writebook](https://github.com/tonsoffun/writebook) - Writing assistant powered by SolidAgent
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
@@ -127,4 +134,4 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/solid_agent.
+Bug reports and pull requests are welcome on GitHub at https://github.com/activeagents/solid_agent.
