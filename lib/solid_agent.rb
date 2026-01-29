@@ -22,6 +22,8 @@ end
 require_relative "solid_agent/has_context"
 require_relative "solid_agent/has_tools"
 require_relative "solid_agent/streams_tool_updates"
+require_relative "solid_agent/reasonable"
+require_relative "solid_agent/has_reasons"
 require_relative "solid_agent/agent_manifest"
 
 # Load Rails integration if Rails is present
