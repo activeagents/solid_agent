@@ -1,0 +1,30 @@
+---
+model: googleai/gemini-1.5-pro
+temperature: 0.7
+maxOutputTokens: 2048
+
+input:
+  schema:
+    text: string
+    language?: string
+
+output:
+  format: json
+  schema:
+    type: object
+    properties:
+      translated:
+        type: string
+      confidence:
+        type: number
+
+tools:
+  - detect_language
+  - translate_text
+---
+
+Translate the following text to {{ language | default: "English" }}:
+
+{{ text }}
+
+Provide your translation in JSON format with the translated text and a confidence score.

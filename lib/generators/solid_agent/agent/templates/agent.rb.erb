@@ -19,11 +19,11 @@ class <%= class_name %>Agent < <%= @parent_class %>
 
 <%- if @include_context -%>
   # Enable database-backed context persistence
-  # Context is auto-created from params[:<%= @contextable || 'contextable' %>]
+  # Context is auto-created from params[:<%= @contextual || 'contextual' %>]
 <%- if @context_name -%>
-  has_context :<%= @context_name %>, contextable: :<%= @contextable || 'contextable' %>
+  has_context :<%= @context_name %>, contextual: :<%= @contextual || 'contextual' %>
 <%- else -%>
-  has_context contextable: :<%= @contextable || 'contextable' %>
+  has_context contextual: :<%= @contextual || 'contextual' %>
 <%- end -%>
 <%- end -%>
 

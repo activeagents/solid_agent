@@ -436,18 +436,18 @@ class HasContextTest < Minitest::Test
 
   # === Auto-context tests ===
 
-  def test_has_context_with_contextable_stores_config
-    @agent_class.has_context :conversation, contextable: :user
+  def test_has_context_with_contextual_stores_config
+    @agent_class.has_context :conversation, contextual: :user
 
     config = @agent_class._context_configs[:conversation]
-    assert_equal :user, config[:contextable]
+    assert_equal :user, config[:contextual]
   end
 
-  def test_has_context_with_contextable_false_stores_config
-    @agent_class.has_context :conversation, contextable: false
+  def test_has_context_with_contextual_false_stores_config
+    @agent_class.has_context :conversation, contextual: false
 
     config = @agent_class._context_configs[:conversation]
-    assert_equal false, config[:contextable]
+    assert_equal false, config[:contextual]
   end
 
   def test_has_context_registers_ensure_callback_by_default
@@ -456,8 +456,8 @@ class HasContextTest < Minitest::Test
     assert_includes @agent_class.after_prompt_callbacks, :ensure_conversation_exists
   end
 
-  def test_has_context_does_not_register_ensure_callback_when_contextable_false
-    @agent_class.has_context :conversation, contextable: false
+  def test_has_context_does_not_register_ensure_callback_when_contextual_false
+    @agent_class.has_context :conversation, contextual: false
 
     refute_includes @agent_class.after_prompt_callbacks || [], :ensure_conversation_exists
   end
@@ -474,8 +474,8 @@ class HasContextTest < Minitest::Test
     assert_equal @agent_class.name, agent.conversation.agent_name
   end
 
-  def test_ensure_context_exists_with_contextable_param
-    @agent_class.has_context :conversation, contextable: :user
+  def test_ensure_context_exists_with_contextual_param
+    @agent_class.has_context :conversation, contextual: :user
 
     agent = @agent_class.new
     mock_user = Object.new
@@ -500,7 +500,7 @@ class HasContextTest < Minitest::Test
   end
 
   def test_auto_context_with_named_context_uses_correct_param
-    @agent_class.has_context :research_session, contextable: :project
+    @agent_class.has_context :research_session, contextual: :project
 
     agent = @agent_class.new
     mock_project = Object.new
@@ -511,8 +511,8 @@ class HasContextTest < Minitest::Test
     assert_equal mock_project, agent.research_session.contextable
   end
 
-  def test_auto_context_without_contextable_creates_anonymous_context
-    @agent_class.has_context :conversation  # No contextable specified, defaults to nil
+  def test_auto_context_without_contextual_creates_anonymous_context
+    @agent_class.has_context :conversation  # No contextual specified, defaults to nil
 
     agent = @agent_class.new
     agent.params = {}

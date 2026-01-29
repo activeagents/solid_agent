@@ -1,0 +1,13 @@
+---
+name: <%= file_name %>
+model: <%= @model %>
+description: <%= @description %>
+<% if @tools.any? -%>
+tools:
+<% @tools.each do |tool| -%>
+  - <%= tool %>
+<% end -%>
+<% end -%>
+---
+
+<%= default_instructions %>

@@ -1,0 +1,39 @@
+---
+name: <%= file_name %>
+version: 1.0.0
+description: <%= @description %>
+model: <%= @model %>
+<% if @tools.any? -%>
+
+tools:
+<% @tools.each do |tool| -%>
+  - name: <%= tool %>
+    description: "TODO - Describe what <%= tool %> does"
+    inputSchema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Input for <%= tool %>"
+      required:
+        - query
+<% end -%>
+<% end -%>
+
+activeagent:
+  class_name: <%= agent_class_name %>
+  concerns:
+<% if @contextual -%>
+    - has_context:
+        contextual: <%= @contextual %>
+<% end -%>
+<% if @tools.any? -%>
+    - has_tools: [<%= @tools.join(', ') %>]
+<% end -%>
+---
+
+# <%= agent_title %>
+
+<%= @description %>
+
+<%= default_instructions %>

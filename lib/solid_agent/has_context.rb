@@ -6,10 +6,10 @@
 # to persist its prompt context, messages, and generation results to the database.
 # It works similarly to ActiveRecord associations, allowing custom naming.
 #
-# @example Basic usage with auto-context (contextable inferred from params)
+# @example Basic usage with auto-context (contextual inferred from params)
 #   class WritingAssistantAgent < ApplicationAgent
 #     include SolidAgent::HasContext
-#     has_context contextable: :document  # Auto-creates context from params[:document]
+#     has_context contextual: :document  # Auto-creates context from params[:document]
 #
 #     def improve
 #       prompt  # Context automatically created before prompt
@@ -19,7 +19,7 @@
 # @example Named context with auto-creation
 #   class ChatAgent < ApplicationAgent
 #     include SolidAgent::HasContext
-#     has_context :conversation, contextable: :user  # Auto-loads/creates from params[:user]
+#     has_context :conversation, contextual: :user  # Auto-loads/creates from params[:user]
 #
 #     def chat
 #       add_conversation_user_message(params[:message])
@@ -27,10 +27,10 @@
 #     end
 #   end
 #
-# @example Manual context management (contextable: false)
+# @example Manual context management (contextual: false)
 #   class ResearchAgent < ApplicationAgent
 #     include SolidAgent::HasContext
-#     has_context :research_session, contextable: false
+#     has_context :research_session, contextual: false
 #
 #     def research
 #       create_research_session(contextable: params[:project])  # Manual creation
@@ -38,11 +38,11 @@
 #     end
 #   end
 #
-# @example Multiple contexts with different contextables
+# @example Multiple contexts with different contextual params
 #   class MultiModalAgent < ApplicationAgent
 #     include SolidAgent::HasContext
-#     has_context :conversation, contextable: :user      # Auto from params[:user]
-#     has_context :analysis, contextable: :document      # Auto from params[:document]
+#     has_context :conversation, contextual: :user      # Auto from params[:user]
+#     has_context :analysis, contextual: :document      # Auto from params[:document]
 #
 #     def analyze
 #       prompt  # Both contexts auto-created
@@ -79,26 +79,26 @@ module SolidAgent
       #
       # @param auto_save [Boolean] Automatically save generation results (default: true)
       #
-      # @param contextable [Symbol, false, nil] Param key for auto-context creation
-      #   - Symbol: Auto-load/create context using params[contextable] (e.g., :user, :document)
+      # @param contextual [Symbol, false, nil] Param key for auto-context creation
+      #   - Symbol: Auto-load/create context using params[contextual] (e.g., :user, :document)
       #   - false: Disable auto-context, require manual create_* or load_* calls
       #   - nil: Auto-create context without a contextable (anonymous context)
       #
       # @example Auto-context from params
-      #   has_context :conversation, contextable: :user
+      #   has_context :conversation, contextual: :user
       #
       # @example Manual context management
-      #   has_context :session, contextable: false
+      #   has_context :session, contextual: false
       #
       # @example Fully customized
       #   has_context :session,
       #               class_name: "ChatSession",
       #               message_class: "ChatMessage",
       #               generation_class: "ChatGeneration",
-      #               contextable: :chat_user,
+      #               contextual: :chat_user,
       #               auto_save: false
       #
-      def has_context(name = nil, class_name: nil, message_class: nil, generation_class: nil, auto_save: true, contextable: nil)
+      def has_context(name = nil, class_name: nil, message_class: nil, generation_class: nil, auto_save: true, contextual: nil)
         # Normalize name
         context_name = normalize_context_name(name)
 
@@ -111,7 +111,7 @@ module SolidAgent
           message_class: message_class || inferred_classes[:message],
           generation_class: generation_class || inferred_classes[:generation],
           auto_save: auto_save,
-          contextable: contextable
+          contextual: contextual
         }
 
         # Store configuration
@@ -129,10 +129,10 @@ module SolidAgent
           around_generation :capture_and_persist_generation
         end
 
-        # Add auto-context callback if contextable is not explicitly false
-        if contextable != false
+        # Add auto-context callback if contextual is not explicitly false
+        if contextual != false
           after_prompt :"ensure_#{context_name}_exists"
-          define_auto_context_method(context_name, contextable)
+          define_auto_context_method(context_name, contextual)
         end
       end
 
@@ -177,17 +177,17 @@ module SolidAgent
         attr_accessor context_name
       end
 
-      def define_auto_context_method(context_name, contextable_key)
+      def define_auto_context_method(context_name, contextual_key)
         # Define ensure_{name}_exists method that auto-creates context if not present
         define_method("ensure_#{context_name}_exists") do
           return if send(context_name).present?
 
           config = self.class._context_configs[context_name]
-          contextable_param = config[:contextable]
+          contextual_param = config[:contextual]
 
-          if contextable_param.is_a?(Symbol)
+          if contextual_param.is_a?(Symbol)
             # Load or create with contextable from params
-            contextable_value = params[contextable_param]
+            contextable_value = params[contextual_param]
             send("load_#{context_name}", contextable: contextable_value)
           else
             # Create anonymous context (no contextable)
