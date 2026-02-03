@@ -1,0 +1,215 @@
+# ActivePrompt CLI Configuration
+# Configure how the CLI interacts with agents, MCP servers, and sessions
+
+version: "1.0"
+name: active-prompt
+
+# Default settings
+defaults:
+  model: anthropic/claude-sonnet-4-20250514
+  timeout: 300  # 5 minutes
+  max_retries: 3
+  output_format: json
+
+# Agent configurations
+agents:
+  github-trends:
+    manifest: config/agents/github-trends.agent.md
+    description: Find trending repositories on GitHub
+    aliases: [trends, gh-trends]
+    options:
+      language:
+        short: l
+        type: string
+        description: Filter by programming language
+      timeframe:
+        short: t
+        type: string
+        choices: [daily, weekly, monthly]
+        default: daily
+      count:
+        short: n
+        type: integer
+        default: 5
+        description: Number of repositories to return
+
+  browser-assistant:
+    manifest: config/agents/browser-assistant.agent.md
+    description: General browser automation assistant
+    aliases: [browser, web]
+    options:
+      headless:
+        type: boolean
+        default: false
+        description: Run browser in headless mode
+      timeout:
+        type: integer
+        default: 30000
+        description: Page load timeout in milliseconds
+
+# MCP server configurations
+mcp:
+  servers:
+    playwright:
+      config: config/mcp/playwright-mcp.yml
+      auto_start: true
+      environment:
+        PLAYWRIGHT_HEADLESS: "${HEADLESS:-false}"
+        PLAYWRIGHT_SLOW_MO: "${SLOW_MO:-0}"
+
+    # Additional MCP servers can be added here
+    # filesystem:
+    #   command: npx
+    #   args: ["@anthropic-ai/mcp-filesystem"]
+    #   allowed_paths:
+    #     - "${HOME}/Documents"
+    #     - "${PWD}"
+
+# Session management
+sessions:
+  storage: database  # memory, redis, database
+  timeout: 1800  # 30 minutes
+  max_fragments: 100
+  auto_cleanup: true
+  cleanup_interval: 3600  # 1 hour
+
+  # Fragment types to persist
+  persist_fragments:
+    - browser_state
+    - tool_output
+    - reasoning
+    - checkpoint
+    - authentication
+
+# Authentication handling
+auth:
+  # How to notify user when auth is required
+  notification:
+    method: terminal  # terminal, webhook, callback
+    # webhook_url: https://your-app.com/auth-required
+
+  # Auto-detect auth patterns
+  detection_patterns:
+    - "login"
+    - "sign.?in"
+    - "authentication"
+    - "password"
+    - "captcha"
+    - "verify"
+    - "2fa"
+    - "mfa"
+
+# Output configuration
+output:
+  # Default output format
+  format: json
+
+  # Pretty print JSON
+  pretty: true
+
+  # Include metadata in output
+  include_metadata: true
+
+  # Save outputs to file
+  save_to_file: false
+  output_dir: "./outputs"
+
+# Logging
+logging:
+  level: info  # debug, info, warn, error
+  format: text  # text, json
+  file: null  # Optional log file path
+
+  # What to log
+  log_tool_calls: true
+  log_reasoning: false
+  log_fragments: false
+
+# CLI commands
+commands:
+  # Run an agent with instructions
+  run:
+    usage: "active-prompt run <agent> [instructions]"
+    examples:
+      - "active-prompt run github-trends -l python -n 10"
+      - "active-prompt run browser-assistant 'Go to example.com and click the login button'"
+
+  # List available agents
+  list:
+    usage: "active-prompt list [agents|sessions|prompts]"
+
+  # Session management
+  session:
+    subcommands:
+      list:
+        description: List all sessions
+      show:
+        description: Show session details
+        args: [session_id]
+      resume:
+        description: Resume a paused session
+        args: [session_id]
+      cancel:
+        description: Cancel a session
+        args: [session_id]
+
+  # Prompt management
+  prompt:
+    subcommands:
+      list:
+        description: List all prompts
+      show:
+        description: Show prompt details
+        args: [name, version?]
+      create:
+        description: Create a new prompt
+        args: [manifest_file]
+      version:
+        description: Create new version of prompt
+        args: [name, bump_type]
+
+  # Auth signal
+  auth:
+    subcommands:
+      complete:
+        description: Signal that authentication is complete
+        args: [session_id]
+      status:
+        description: Check auth status for session
+        args: [session_id]
+
+# Environment variables
+environment:
+  # API keys (read from environment)
+  ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+  OPENAI_API_KEY: "${OPENAI_API_KEY}"
+
+  # Database
+  DATABASE_URL: "${DATABASE_URL:-sqlite3:db/active_prompt.sqlite3}"
+
+  # Redis (for session storage)
+  REDIS_URL: "${REDIS_URL}"
+
+# Hooks
+hooks:
+  # Before running an agent
+  before_run:
+    - validate_api_key
+    - check_mcp_servers
+
+  # After agent completes
+  after_run:
+    - cleanup_browser
+    - save_session_summary
+
+  # On error
+  on_error:
+    - save_error_state
+    - notify_user
+
+# Aliases for quick access
+aliases:
+  gt: "run github-trends"
+  browser: "run browser-assistant"
+  sessions: "session list"
+  prompts: "prompt list"

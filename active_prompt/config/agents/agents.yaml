@@ -1,0 +1,334 @@
+# CrewAI-compatible Agent Definitions
+# These agents can be used with both SolidAgent and CrewAI frameworks
+
+agents:
+  github_trends_researcher:
+    role: GitHub Trends Researcher
+    goal: >
+      Discover and analyze trending repositories on GitHub, providing
+      insights about popular projects, emerging technologies, and
+      developer community interests.
+    backstory: >
+      You are an expert at navigating GitHub and understanding developer trends.
+      You can efficiently browse the GitHub trending page, filter by language
+      and timeframe, and extract meaningful information about repositories.
+      You understand what makes a repository popular and can identify
+      significant patterns in trending projects.
+    verbose: true
+    allow_delegation: false
+    tools:
+      - browser_navigate
+      - browser_snapshot
+      - browser_click
+      - browser_evaluate
+      - browser_wait_for
+      - extract_trending_repos
+
+    # SolidAgent/ActivePrompt extensions
+    activeagent:
+      model: anthropic/claude-sonnet-4-20250514
+      concerns:
+        - has_context
+        - has_tools
+        - has_reasons
+      config:
+        temperature: 0.3
+        max_tokens: 4096
+
+  browser_automation_specialist:
+    role: Browser Automation Specialist
+    goal: >
+      Execute browser automation tasks efficiently, handling navigation,
+      form filling, data extraction, and interactive workflows while
+      gracefully managing authentication requirements.
+    backstory: >
+      You are a skilled browser automation expert who can navigate any
+      website, interact with complex web applications, and extract data.
+      When you encounter login pages or authentication requirements,
+      you know to pause and request human assistance, resuming seamlessly
+      once authentication is complete.
+    verbose: true
+    allow_delegation: false
+    tools:
+      - browser_navigate
+      - browser_snapshot
+      - browser_click
+      - browser_type
+      - browser_fill_form
+      - browser_select_option
+      - browser_evaluate
+      - browser_wait_for
+      - browser_take_screenshot
+      - browser_press_key
+
+    # SolidAgent/ActivePrompt extensions
+    activeagent:
+      model: anthropic/claude-sonnet-4-20250514
+      concerns:
+        - has_context:
+            contextual: false
+        - has_tools
+        - has_reasons:
+            auto_capture: true
+            persist: true
+        - streams_tool_updates
+      config:
+        temperature: 0.2
+        max_tokens: 8192
+
+  web_scraper:
+    role: Web Data Extractor
+    goal: >
+      Extract structured data from websites, handling pagination,
+      dynamic content, and various page layouts to produce clean,
+      organized datasets.
+    backstory: >
+      You are an expert at extracting data from websites. You understand
+      HTML structure, can identify patterns in page layouts, and know
+      how to handle dynamic content loaded via JavaScript. You always
+      produce clean, well-structured data.
+    verbose: true
+    allow_delegation: false
+    tools:
+      - browser_navigate
+      - browser_snapshot
+      - browser_click
+      - browser_evaluate
+      - browser_wait_for
+
+    activeagent:
+      model: anthropic/claude-sonnet-4-20250514
+      concerns:
+        - has_context
+        - has_tools
+      config:
+        temperature: 0.1
+        max_tokens: 4096
+
+# Task templates that work with these agents
+tasks:
+  fetch_trending_repos:
+    description: >
+      Navigate to GitHub trending page and extract the top {count}
+      trending repositories{language_filter}. Return structured data
+      including repository name, URL, description, star count, and
+      today's star gains.
+    expected_output: >
+      A JSON array of repository objects with name, url, description,
+      stars, language, and stars_today fields.
+    agent: github_trends_researcher
+    variables:
+      count:
+        type: integer
+        default: 5
+      language_filter:
+        type: string
+        default: ""
+        template: " for {language}"
+
+  automated_form_submission:
+    description: >
+      Navigate to {url} and fill out the form with the provided data:
+      {form_data}. Submit the form and capture the result.
+    expected_output: >
+      Confirmation of successful form submission with any response
+      data or confirmation numbers.
+    agent: browser_automation_specialist
+    variables:
+      url:
+        type: string
+        required: true
+      form_data:
+        type: object
+        required: true
+
+  extract_page_data:
+    description: >
+      Navigate to {url} and extract data matching the pattern:
+      {extraction_pattern}. Handle pagination if present.
+    expected_output: >
+      Structured data extracted from the page in JSON format.
+    agent: web_scraper
+    variables:
+      url:
+        type: string
+        required: true
+      extraction_pattern:
+        type: string
+        required: true
+
+# Crew definitions for multi-agent workflows
+crews:
+  github_research_crew:
+    description: Research trending projects and gather detailed information
+    agents:
+      - github_trends_researcher
+      - web_scraper
+    tasks:
+      - fetch_trending_repos
+      - extract_page_data
+    process: sequential
+    verbose: true
+
+# Tool definitions for all agents
+tools:
+  browser_navigate:
+    name: browser_navigate
+    description: Navigate to a URL in the browser
+    parameters:
+      url:
+        type: string
+        description: The URL to navigate to
+        required: true
+    mcp_ref: "@playwright/mcp#browser_navigate"
+
+  browser_snapshot:
+    name: browser_snapshot
+    description: Get accessibility snapshot of current page
+    parameters: {}
+    mcp_ref: "@playwright/mcp#browser_snapshot"
+
+  browser_click:
+    name: browser_click
+    description: Click an element on the page
+    parameters:
+      ref:
+        type: string
+        description: Element reference from snapshot
+        required: true
+      element:
+        type: string
+        description: Human-readable description
+    mcp_ref: "@playwright/mcp#browser_click"
+
+  browser_type:
+    name: browser_type
+    description: Type text into an element
+    parameters:
+      ref:
+        type: string
+        required: true
+      text:
+        type: string
+        required: true
+      submit:
+        type: boolean
+        default: false
+    mcp_ref: "@playwright/mcp#browser_type"
+
+  browser_fill_form:
+    name: browser_fill_form
+    description: Fill multiple form fields
+    parameters:
+      fields:
+        type: array
+        required: true
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            ref:
+              type: string
+              required: true
+            type:
+              type: string
+              enum: [textbox, checkbox, radio, combobox, slider]
+              required: true
+            value:
+              type: string
+              required: true
+    mcp_ref: "@playwright/mcp#browser_fill_form"
+
+  browser_select_option:
+    name: browser_select_option
+    description: Select option in dropdown
+    parameters:
+      ref:
+        type: string
+        required: true
+      values:
+        type: array
+        required: true
+    mcp_ref: "@playwright/mcp#browser_select_option"
+
+  browser_evaluate:
+    name: browser_evaluate
+    description: Execute JavaScript on the page
+    parameters:
+      function:
+        type: string
+        description: JavaScript function to execute
+        required: true
+      ref:
+        type: string
+        description: Optional element reference
+    mcp_ref: "@playwright/mcp#browser_evaluate"
+
+  browser_wait_for:
+    name: browser_wait_for
+    description: Wait for text, element, or time
+    parameters:
+      text:
+        type: string
+      textGone:
+        type: string
+      time:
+        type: number
+    mcp_ref: "@playwright/mcp#browser_wait_for"
+
+  browser_take_screenshot:
+    name: browser_take_screenshot
+    description: Capture screenshot of page
+    parameters:
+      filename:
+        type: string
+      fullPage:
+        type: boolean
+        default: false
+    mcp_ref: "@playwright/mcp#browser_take_screenshot"
+
+  browser_press_key:
+    name: browser_press_key
+    description: Press a keyboard key
+    parameters:
+      key:
+        type: string
+        required: true
+    mcp_ref: "@playwright/mcp#browser_press_key"
+
+  extract_trending_repos:
+    name: extract_trending_repos
+    description: Extract trending repository data from GitHub trending page
+    parameters:
+      count:
+        type: integer
+        default: 5
+        description: Number of repositories to extract
+    # Custom tool - implemented in agent
+    implementation: inline
+    code: |
+      function extractTrendingRepos(count = 5) {
+        const repos = [];
+        const articles = document.querySelectorAll('article.Box-row');
+
+        for (let i = 0; i < Math.min(count, articles.length); i++) {
+          const article = articles[i];
+          const nameEl = article.querySelector('h2 a');
+          const descEl = article.querySelector('p');
+          const starsEl = article.querySelector('a[href$="/stargazers"]');
+          const langEl = article.querySelector('[itemprop="programmingLanguage"]');
+          const todayEl = article.querySelector('.float-sm-right');
+
+          repos.push({
+            name: nameEl?.textContent?.trim().replace(/\s+/g, ''),
+            url: 'https://github.com' + nameEl?.getAttribute('href'),
+            description: descEl?.textContent?.trim() || '',
+            stars: parseInt(starsEl?.textContent?.trim().replace(/,/g, '')) || 0,
+            language: langEl?.textContent?.trim() || 'Unknown',
+            stars_today: parseInt(todayEl?.textContent?.match(/(\d+)/)?.[1]) || 0
+          });
+        }
+
+        return repos;
+      }
