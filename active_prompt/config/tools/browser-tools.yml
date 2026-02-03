@@ -1,0 +1,611 @@
+# Browser Automation Tools
+# Compatible with SolidAgent, ActivePrompt, and MCP
+
+version: "1.0"
+name: browser-tools
+description: Common browser automation tools for web agents
+
+# Tool categories
+categories:
+  navigation:
+    - browser_navigate
+    - browser_navigate_back
+    - browser_tabs
+
+  inspection:
+    - browser_snapshot
+    - browser_take_screenshot
+    - browser_console_messages
+    - browser_network_requests
+
+  interaction:
+    - browser_click
+    - browser_hover
+    - browser_type
+    - browser_fill_form
+    - browser_select_option
+    - browser_press_key
+    - browser_drag
+
+  execution:
+    - browser_evaluate
+    - browser_wait_for
+
+  dialogs:
+    - browser_handle_dialog
+    - browser_file_upload
+
+  management:
+    - browser_resize
+    - browser_close
+    - browser_install
+
+# Full tool definitions
+tools:
+  # Navigation Tools
+  browser_navigate:
+    name: browser_navigate
+    category: navigation
+    description: Navigate the browser to a specified URL
+    mcp_mapping: mcp__playwright__browser_navigate
+    parameters:
+      url:
+        type: string
+        description: The URL to navigate to
+        required: true
+        validation:
+          pattern: "^https?://"
+          message: URL must start with http:// or https://
+    returns:
+      type: object
+      properties:
+        success: boolean
+        url: string
+        title: string
+    examples:
+      - input:
+          url: "https://github.com/trending"
+        output:
+          success: true
+          url: "https://github.com/trending"
+          title: "Trending repositories on GitHub"
+
+  browser_navigate_back:
+    name: browser_navigate_back
+    category: navigation
+    description: Navigate back to the previous page in browser history
+    mcp_mapping: mcp__playwright__browser_navigate_back
+    parameters: {}
+    returns:
+      type: object
+      properties:
+        success: boolean
+        url: string
+
+  browser_tabs:
+    name: browser_tabs
+    category: navigation
+    description: Manage browser tabs (list, create, close, select)
+    mcp_mapping: mcp__playwright__browser_tabs
+    parameters:
+      action:
+        type: string
+        enum: [list, new, close, select]
+        required: true
+        description: Operation to perform
+      index:
+        type: integer
+        description: Tab index for close/select operations
+    returns:
+      type: object
+      properties:
+        tabs: array
+        currentIndex: integer
+
+  # Inspection Tools
+  browser_snapshot:
+    name: browser_snapshot
+    category: inspection
+    description: |
+      Get accessibility snapshot of the current page.
+      Returns page structure with element references (refs) for interactions.
+      This is the primary tool for understanding page content.
+    mcp_mapping: mcp__playwright__browser_snapshot
+    parameters:
+      filename:
+        type: string
+        description: Optional filename to save snapshot to
+    returns:
+      type: object
+      properties:
+        snapshot: string
+        elements: array
+    usage_tips:
+      - Always call this before interacting with elements
+      - Use returned refs for click, type, and other interactions
+      - Better than screenshots for understanding page structure
+
+  browser_take_screenshot:
+    name: browser_take_screenshot
+    category: inspection
+    description: Capture a screenshot of the current page
+    mcp_mapping: mcp__playwright__browser_take_screenshot
+    parameters:
+      filename:
+        type: string
+        description: Output filename (defaults to page-{timestamp}.png)
+      type:
+        type: string
+        enum: [png, jpeg]
+        default: png
+      fullPage:
+        type: boolean
+        default: false
+        description: Capture entire scrollable page
+      ref:
+        type: string
+        description: Element ref for element-specific screenshot
+      element:
+        type: string
+        description: Human-readable element description
+    returns:
+      type: object
+      properties:
+        path: string
+        size: integer
+
+  browser_console_messages:
+    name: browser_console_messages
+    category: inspection
+    description: Get browser console messages for debugging
+    mcp_mapping: mcp__playwright__browser_console_messages
+    parameters:
+      level:
+        type: string
+        enum: [error, warning, info, debug]
+        default: info
+        description: Minimum log level to return
+      filename:
+        type: string
+        description: Optional filename to save messages
+    returns:
+      type: object
+      properties:
+        messages: array
+
+  browser_network_requests:
+    name: browser_network_requests
+    category: inspection
+    description: Get network requests made since page load
+    mcp_mapping: mcp__playwright__browser_network_requests
+    parameters:
+      includeStatic:
+        type: boolean
+        default: false
+        description: Include static resources (images, fonts, etc.)
+      filename:
+        type: string
+        description: Optional filename to save requests
+    returns:
+      type: object
+      properties:
+        requests: array
+
+  # Interaction Tools
+  browser_click:
+    name: browser_click
+    category: interaction
+    description: Click an element on the page
+    mcp_mapping: mcp__playwright__browser_click
+    parameters:
+      ref:
+        type: string
+        required: true
+        description: Element reference from snapshot
+      element:
+        type: string
+        description: Human-readable element description (for logging)
+      button:
+        type: string
+        enum: [left, right, middle]
+        default: left
+      doubleClick:
+        type: boolean
+        default: false
+      modifiers:
+        type: array
+        items:
+          type: string
+          enum: [Alt, Control, ControlOrMeta, Meta, Shift]
+    returns:
+      type: object
+      properties:
+        success: boolean
+    examples:
+      - input:
+          ref: "button[0]"
+          element: "Submit button"
+        output:
+          success: true
+
+  browser_hover:
+    name: browser_hover
+    category: interaction
+    description: Hover over an element (useful for dropdowns/tooltips)
+    mcp_mapping: mcp__playwright__browser_hover
+    parameters:
+      ref:
+        type: string
+        required: true
+        description: Element reference from snapshot
+      element:
+        type: string
+        description: Human-readable element description
+    returns:
+      type: object
+      properties:
+        success: boolean
+
+  browser_type:
+    name: browser_type
+    category: interaction
+    description: Type text into an editable element
+    mcp_mapping: mcp__playwright__browser_type
+    parameters:
+      ref:
+        type: string
+        required: true
+        description: Element reference from snapshot
+      text:
+        type: string
+        required: true
+        description: Text to type
+      element:
+        type: string
+        description: Human-readable element description
+      slowly:
+        type: boolean
+        default: false
+        description: Type one character at a time (triggers key handlers)
+      submit:
+        type: boolean
+        default: false
+        description: Press Enter after typing
+    returns:
+      type: object
+      properties:
+        success: boolean
+    examples:
+      - input:
+          ref: "input[0]"
+          text: "search query"
+          submit: true
+        output:
+          success: true
+
+  browser_fill_form:
+    name: browser_fill_form
+    category: interaction
+    description: Fill multiple form fields at once
+    mcp_mapping: mcp__playwright__browser_fill_form
+    parameters:
+      fields:
+        type: array
+        required: true
+        description: Array of field definitions
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Human-readable field name
+            ref:
+              type: string
+              required: true
+              description: Element reference
+            type:
+              type: string
+              required: true
+              enum: [textbox, checkbox, radio, combobox, slider]
+            value:
+              type: string
+              required: true
+              description: Value to fill
+    returns:
+      type: object
+      properties:
+        success: boolean
+        filled: integer
+    examples:
+      - input:
+          fields:
+            - name: "Username"
+              ref: "input[0]"
+              type: textbox
+              value: "user@example.com"
+            - name: "Password"
+              ref: "input[1]"
+              type: textbox
+              value: "password123"
+        output:
+          success: true
+          filled: 2
+
+  browser_select_option:
+    name: browser_select_option
+    category: interaction
+    description: Select option(s) in a dropdown
+    mcp_mapping: mcp__playwright__browser_select_option
+    parameters:
+      ref:
+        type: string
+        required: true
+        description: Element reference for select element
+      values:
+        type: array
+        required: true
+        description: Value(s) to select
+        items:
+          type: string
+      element:
+        type: string
+        description: Human-readable element description
+    returns:
+      type: object
+      properties:
+        success: boolean
+        selected: array
+
+  browser_press_key:
+    name: browser_press_key
+    category: interaction
+    description: Press a keyboard key
+    mcp_mapping: mcp__playwright__browser_press_key
+    parameters:
+      key:
+        type: string
+        required: true
+        description: Key name (e.g., Enter, Tab, ArrowDown, a)
+    returns:
+      type: object
+      properties:
+        success: boolean
+    examples:
+      - input:
+          key: "Enter"
+        output:
+          success: true
+
+  browser_drag:
+    name: browser_drag
+    category: interaction
+    description: Drag and drop between two elements
+    mcp_mapping: mcp__playwright__browser_drag
+    parameters:
+      startRef:
+        type: string
+        required: true
+        description: Source element reference
+      startElement:
+        type: string
+        description: Source element description
+      endRef:
+        type: string
+        required: true
+        description: Target element reference
+      endElement:
+        type: string
+        description: Target element description
+    returns:
+      type: object
+      properties:
+        success: boolean
+
+  # Execution Tools
+  browser_evaluate:
+    name: browser_evaluate
+    category: execution
+    description: Execute JavaScript on the page
+    mcp_mapping: mcp__playwright__browser_evaluate
+    parameters:
+      function:
+        type: string
+        required: true
+        description: "JavaScript function: () => { } or (element) => { }"
+      ref:
+        type: string
+        description: Element reference if function takes element parameter
+      element:
+        type: string
+        description: Human-readable element description
+    returns:
+      type: object
+      properties:
+        result: any
+    examples:
+      - input:
+          function: "() => document.title"
+        output:
+          result: "Page Title"
+      - input:
+          function: "() => Array.from(document.querySelectorAll('a')).map(a => a.href)"
+        output:
+          result: ["https://example.com/1", "https://example.com/2"]
+
+  browser_wait_for:
+    name: browser_wait_for
+    category: execution
+    description: Wait for text, element disappearance, or time
+    mcp_mapping: mcp__playwright__browser_wait_for
+    parameters:
+      text:
+        type: string
+        description: Text to wait for appearance
+      textGone:
+        type: string
+        description: Text to wait for disappearance
+      time:
+        type: number
+        description: Time to wait in seconds
+    returns:
+      type: object
+      properties:
+        success: boolean
+        waited_for: string
+    examples:
+      - input:
+          text: "Loading complete"
+        output:
+          success: true
+          waited_for: "text"
+      - input:
+          time: 2
+        output:
+          success: true
+          waited_for: "time"
+
+  # Dialog Tools
+  browser_handle_dialog:
+    name: browser_handle_dialog
+    category: dialogs
+    description: Handle JavaScript dialogs (alert, confirm, prompt)
+    mcp_mapping: mcp__playwright__browser_handle_dialog
+    parameters:
+      accept:
+        type: boolean
+        required: true
+        description: Whether to accept the dialog
+      promptText:
+        type: string
+        description: Text to enter for prompt dialogs
+    returns:
+      type: object
+      properties:
+        success: boolean
+        dialogType: string
+
+  browser_file_upload:
+    name: browser_file_upload
+    category: dialogs
+    description: Upload file(s) via file input
+    mcp_mapping: mcp__playwright__browser_file_upload
+    parameters:
+      paths:
+        type: array
+        description: Absolute paths to files to upload
+        items:
+          type: string
+    returns:
+      type: object
+      properties:
+        success: boolean
+        uploaded: integer
+
+  # Management Tools
+  browser_resize:
+    name: browser_resize
+    category: management
+    description: Resize the browser window
+    mcp_mapping: mcp__playwright__browser_resize
+    parameters:
+      width:
+        type: integer
+        required: true
+        description: Window width in pixels
+      height:
+        type: integer
+        required: true
+        description: Window height in pixels
+    returns:
+      type: object
+      properties:
+        success: boolean
+        size:
+          type: object
+          properties:
+            width: integer
+            height: integer
+
+  browser_close:
+    name: browser_close
+    category: management
+    description: Close the browser page
+    mcp_mapping: mcp__playwright__browser_close
+    parameters: {}
+    returns:
+      type: object
+      properties:
+        success: boolean
+
+  browser_install:
+    name: browser_install
+    category: management
+    description: Install the browser if not present
+    mcp_mapping: mcp__playwright__browser_install
+    parameters: {}
+    returns:
+      type: object
+      properties:
+        success: boolean
+        installed: boolean
+
+# Tool presets for common use cases
+presets:
+  basic_navigation:
+    description: Tools for basic web navigation
+    tools:
+      - browser_navigate
+      - browser_snapshot
+      - browser_click
+      - browser_wait_for
+
+  form_filling:
+    description: Tools for filling and submitting forms
+    tools:
+      - browser_navigate
+      - browser_snapshot
+      - browser_click
+      - browser_type
+      - browser_fill_form
+      - browser_select_option
+      - browser_press_key
+
+  data_extraction:
+    description: Tools for extracting data from pages
+    tools:
+      - browser_navigate
+      - browser_snapshot
+      - browser_evaluate
+      - browser_wait_for
+
+  full_automation:
+    description: All browser automation tools
+    tools: all
+
+# Authentication patterns to detect
+auth_patterns:
+  login_indicators:
+    - pattern: "login|sign.?in|log.?in"
+      type: login_page
+    - pattern: "password|passwd"
+      type: password_field
+    - pattern: "captcha|recaptcha|hcaptcha"
+      type: captcha
+    - pattern: "2fa|mfa|two.?factor|verification.?code"
+      type: mfa
+    - pattern: "oauth|authorize|consent"
+      type: oauth
+
+  actions:
+    login_page:
+      action: pause
+      message: "Login page detected. Please complete authentication."
+    captcha:
+      action: pause
+      message: "CAPTCHA detected. Please solve the CAPTCHA to continue."
+    mfa:
+      action: pause
+      message: "Multi-factor authentication required. Please complete verification."
+    oauth:
+      action: pause
+      message: "OAuth authorization required. Please authorize the application."

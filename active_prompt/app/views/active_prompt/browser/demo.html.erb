@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ActivePrompt Browser Agent Demo</title>
+  <style>
+    :root {
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --bg-tertiary: #0f3460;
+      --text-primary: #eaeaea;
+      --text-secondary: #a0a0a0;
+      --accent: #e94560;
+      --success: #4ecca3;
+      --warning: #ffc107;
+      --info: #00b4d8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 900px) {
+      .main-content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .panel h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .input-section {
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 2px solid var(--bg-tertiary);
+      border-radius: 8px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #d63750;
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: var(--bg-primary);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .status-active { background: var(--info); color: white; }
+    .status-paused { background: var(--warning); color: black; }
+    .status-waiting { background: var(--accent); color: white; }
+    .status-completed { background: var(--success); color: white; }
+    .status-failed { background: #dc3545; color: white; }
+
+    .execution-log {
+      max-height: 400px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85rem;
+    }
+
+    .log-entry {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--bg-tertiary);
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-timestamp {
+      color: var(--text-secondary);
+      margin-right: 1rem;
+    }
+
+    .log-tool {
+      color: var(--info);
+    }
+
+    .log-error {
+      color: var(--accent);
+    }
+
+    .log-success {
+      color: var(--success);
+    }
+
+    .auth-notice {
+      background: var(--warning);
+      color: black;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+
+    .auth-notice h3 {
+      margin-bottom: 0.5rem;
+    }
+
+    .session-info {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .session-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem;
+      background: var(--bg-primary);
+      border-radius: 4px;
+    }
+
+    .session-info-label {
+      color: var(--text-secondary);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid var(--bg-tertiary);
+      border-radius: 50%;
+      border-top-color: var(--accent);
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ActivePrompt Browser Agent</h1>
+      <p class="subtitle">Execute browser automation tasks with AI</p>
+    </header>
+
+    <div class="main-content">
+      <div class="panel">
+        <h2>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          Task Input
+        </h2>
+
+        <div class="input-section">
+          <label for="instructions">Instructions (one-liner)</label>
+          <textarea
+            id="instructions"
+            placeholder="e.g., Go to github.com and find the top 3 trending repositories today"
+          ></textarea>
+        </div>
+
+        <div class="input-section">
+          <label for="prompt-name">Prompt Name (optional)</label>
+          <input type="text" id="prompt-name" placeholder="browser-assistant" value="browser-assistant">
+        </div>
+
+        <div class="button-group">
+          <button id="execute-btn" class="btn btn-primary">
+            Execute Task
+          </button>
+          <button id="clear-btn" class="btn btn-secondary">
+            Clear
+          </button>
+        </div>
+
+        <div id="auth-notice" class="auth-notice hidden">
+          <h3>Authentication Required</h3>
+          <p id="auth-instructions">Please log in to continue. The agent will resume automatically.</p>
+          <div class="button-group">
+            <button id="auth-complete-btn" class="btn btn-success">
+              I've Completed Authentication
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          Session Status
+        </h2>
+
+        <div class="session-info">
+          <div class="session-info-row">
+            <span class="session-info-label">Session ID</span>
+            <span id="session-id">—</span>
+          </div>
+          <div class="session-info-row">
+            <span class="session-info-label">Status</span>
+            <span id="session-status" class="status-badge">Idle</span>
+          </div>
+          <div class="session-info-row">
+            <span class="session-info-label">Fragments</span>
+            <span id="fragment-count">0</span>
+          </div>
+          <div class="session-info-row">
+            <span class="session-info-label">Current URL</span>
+            <span id="current-url">—</span>
+          </div>
+        </div>
+
+        <h3 style="margin: 1rem 0 0.5rem;">Execution Log</h3>
+        <div id="execution-log" class="execution-log">
+          <div class="log-entry">
+            <span class="log-timestamp">—</span>
+            <span>Ready to execute tasks</span>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button id="resume-btn" class="btn btn-secondary hidden">
+            Resume Session
+          </button>
+          <button id="cancel-btn" class="btn btn-secondary hidden">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentSessionId = null;
+    let isExecuting = false;
+
+    // Elements
+    const instructionsInput = document.getElementById('instructions');
+    const promptNameInput = document.getElementById('prompt-name');
+    const executeBtn = document.getElementById('execute-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const authNotice = document.getElementById('auth-notice');
+    const authCompleteBtn = document.getElementById('auth-complete-btn');
+    const authInstructions = document.getElementById('auth-instructions');
+    const sessionIdEl = document.getElementById('session-id');
+    const sessionStatusEl = document.getElementById('session-status');
+    const fragmentCountEl = document.getElementById('fragment-count');
+    const currentUrlEl = document.getElementById('current-url');
+    const executionLog = document.getElementById('execution-log');
+    const resumeBtn = document.getElementById('resume-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+
+    // Event Listeners
+    executeBtn.addEventListener('click', executeTask);
+    clearBtn.addEventListener('click', clearForm);
+    authCompleteBtn.addEventListener('click', completeAuth);
+    resumeBtn.addEventListener('click', resumeSession);
+    cancelBtn.addEventListener('click', cancelSession);
+
+    async function executeTask() {
+      const instructions = instructionsInput.value.trim();
+      if (!instructions) {
+        alert('Please enter instructions');
+        return;
+      }
+
+      setExecuting(true);
+      addLog('Starting task execution...');
+
+      try {
+        const response = await fetch('/active_prompt/browser/execute', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCSRFToken()
+          },
+          body: JSON.stringify({
+            instructions: instructions,
+            prompt_name: promptNameInput.value || 'browser-assistant'
+          })
+        });
+
+        const result = await response.json();
+        handleResult(result);
+      } catch (error) {
+        addLog(`Error: ${error.message}`, 'error');
+        setExecuting(false);
+      }
+    }
+
+    function handleResult(result) {
+      currentSessionId = result.session_id;
+      sessionIdEl.textContent = result.session_id || '—';
+      updateStatus(result.status);
+
+      if (result.execution_log) {
+        result.execution_log.forEach(entry => {
+          addLog(entry.message, entry.error ? 'error' : (entry.tool ? 'tool' : null));
+        });
+      }
+
+      if (result.status === 'waiting_for_auth') {
+        showAuthNotice(result.instructions);
+      } else if (result.status === 'completed') {
+        addLog(`Task completed: ${result.result}`, 'success');
+        setExecuting(false);
+      } else if (result.status === 'failed') {
+        addLog(`Task failed: ${result.error}`, 'error');
+        setExecuting(false);
+      }
+
+      if (result.can_resume) {
+        resumeBtn.classList.remove('hidden');
+      }
+    }
+
+    function updateStatus(status) {
+      const statusMap = {
+        'active': { class: 'status-active', text: 'Active' },
+        'paused': { class: 'status-paused', text: 'Paused' },
+        'waiting_for_auth': { class: 'status-waiting', text: 'Waiting for Auth' },
+        'waiting_for_user': { class: 'status-waiting', text: 'Waiting for Input' },
+        'completed': { class: 'status-completed', text: 'Completed' },
+        'failed': { class: 'status-failed', text: 'Failed' },
+        'queued': { class: 'status-active', text: 'Queued' }
+      };
+
+      const info = statusMap[status] || { class: '', text: status };
+      sessionStatusEl.className = `status-badge ${info.class}`;
+      sessionStatusEl.textContent = info.text;
+    }
+
+    function showAuthNotice(instructions) {
+      authNotice.classList.remove('hidden');
+      if (instructions) {
+        authInstructions.textContent = instructions;
+      }
+      cancelBtn.classList.remove('hidden');
+    }
+
+    async function completeAuth() {
+      if (!currentSessionId) return;
+
+      addLog('Signaling authentication complete...');
+      authNotice.classList.add('hidden');
+
+      try {
+        const response = await fetch('/active_prompt/browser/auth_complete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCSRFToken()
+          },
+          body: JSON.stringify({
+            session_id: currentSessionId
+          })
+        });
+
+        const result = await response.json();
+        handleResult(result);
+      } catch (error) {
+        addLog(`Error resuming: ${error.message}`, 'error');
+      }
+    }
+
+    async function resumeSession() {
+      if (!currentSessionId) return;
+
+      setExecuting(true);
+      addLog('Resuming session...');
+
+      try {
+        const response = await fetch('/active_prompt/browser/resume', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCSRFToken()
+          },
+          body: JSON.stringify({
+            session_id: currentSessionId
+          })
+        });
+
+        const result = await response.json();
+        handleResult(result);
+      } catch (error) {
+        addLog(`Error resuming: ${error.message}`, 'error');
+        setExecuting(false);
+      }
+    }
+
+    async function cancelSession() {
+      // Implementation for cancel
+      addLog('Session cancelled');
+      setExecuting(false);
+      authNotice.classList.add('hidden');
+      cancelBtn.classList.add('hidden');
+      resumeBtn.classList.add('hidden');
+    }
+
+    function addLog(message, type = null) {
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+
+      let typeClass = '';
+      if (type === 'error') typeClass = 'log-error';
+      else if (type === 'tool') typeClass = 'log-tool';
+      else if (type === 'success') typeClass = 'log-success';
+
+      entry.innerHTML = `
+        <span class="log-timestamp">${timestamp}</span>
+        <span class="${typeClass}">${message}</span>
+      `;
+
+      executionLog.appendChild(entry);
+      executionLog.scrollTop = executionLog.scrollHeight;
+    }
+
+    function setExecuting(executing) {
+      isExecuting = executing;
+      executeBtn.disabled = executing;
+      executeBtn.innerHTML = executing
+        ? '<span class="loading"></span> Executing...'
+        : 'Execute Task';
+
+      if (executing) {
+        cancelBtn.classList.remove('hidden');
+      } else {
+        cancelBtn.classList.add('hidden');
+      }
+    }
+
+    function clearForm() {
+      instructionsInput.value = '';
+      executionLog.innerHTML = '<div class="log-entry"><span class="log-timestamp">—</span><span>Ready to execute tasks</span></div>';
+      sessionIdEl.textContent = '—';
+      sessionStatusEl.className = 'status-badge';
+      sessionStatusEl.textContent = 'Idle';
+      fragmentCountEl.textContent = '0';
+      currentUrlEl.textContent = '—';
+      authNotice.classList.add('hidden');
+      resumeBtn.classList.add('hidden');
+      cancelBtn.classList.add('hidden');
+      currentSessionId = null;
+    }
+
+    function getCSRFToken() {
+      return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    }
+  </script>
+</body>
+</html>

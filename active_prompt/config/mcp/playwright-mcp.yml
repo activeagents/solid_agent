@@ -1,0 +1,337 @@
+# Playwright MCP Server Configuration
+# Compatible with Claude Desktop, ActivePrompt, and SolidAgent
+
+name: playwright
+version: 1.0.0
+description: Browser automation via Playwright Model Context Protocol
+transport: stdio
+
+server:
+  command: npx
+  args:
+    - "@anthropic-ai/mcp-playwright"
+  env:
+    PLAYWRIGHT_HEADLESS: "false"
+    PLAYWRIGHT_SLOW_MO: "100"
+
+# Tool definitions for Playwright MCP
+tools:
+  # Navigation
+  - name: browser_navigate
+    description: Navigate to a URL
+    parameters:
+      url:
+        type: string
+        description: The URL to navigate to
+        required: true
+
+  - name: browser_navigate_back
+    description: Go back to the previous page in history
+    parameters: {}
+
+  # Page inspection
+  - name: browser_snapshot
+    description: >
+      Capture accessibility snapshot of the current page.
+      Returns the page structure with element references (refs) that can be
+      used for interactions. This is better than screenshots for understanding
+      page content.
+    parameters:
+      filename:
+        type: string
+        description: Optional filename to save snapshot
+
+  - name: browser_take_screenshot
+    description: Take a screenshot of the current page
+    parameters:
+      filename:
+        type: string
+        description: Output filename (defaults to page-{timestamp}.png)
+      type:
+        type: string
+        enum: [png, jpeg]
+        default: png
+      fullPage:
+        type: boolean
+        description: Capture full scrollable page
+        default: false
+      ref:
+        type: string
+        description: Element ref for element-specific screenshot
+      element:
+        type: string
+        description: Human-readable element description
+
+  # Interactions
+  - name: browser_click
+    description: Click an element on the page
+    parameters:
+      ref:
+        type: string
+        description: Element reference from page snapshot
+        required: true
+      element:
+        type: string
+        description: Human-readable element description
+      button:
+        type: string
+        enum: [left, right, middle]
+        default: left
+      doubleClick:
+        type: boolean
+        default: false
+      modifiers:
+        type: array
+        items:
+          type: string
+          enum: [Alt, Control, ControlOrMeta, Meta, Shift]
+
+  - name: browser_hover
+    description: Hover over an element
+    parameters:
+      ref:
+        type: string
+        description: Element reference from snapshot
+        required: true
+      element:
+        type: string
+        description: Human-readable element description
+
+  - name: browser_type
+    description: Type text into an editable element
+    parameters:
+      ref:
+        type: string
+        description: Element reference from snapshot
+        required: true
+      text:
+        type: string
+        description: Text to type
+        required: true
+      element:
+        type: string
+        description: Human-readable element description
+      slowly:
+        type: boolean
+        description: Type one character at a time
+        default: false
+      submit:
+        type: boolean
+        description: Press Enter after typing
+        default: false
+
+  - name: browser_fill_form
+    description: Fill multiple form fields at once
+    parameters:
+      fields:
+        type: array
+        description: Fields to fill
+        required: true
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Human-readable field name
+            ref:
+              type: string
+              description: Element reference
+              required: true
+            type:
+              type: string
+              enum: [textbox, checkbox, radio, combobox, slider]
+              required: true
+            value:
+              type: string
+              description: Value to fill
+              required: true
+
+  - name: browser_select_option
+    description: Select an option in a dropdown
+    parameters:
+      ref:
+        type: string
+        description: Element reference for select element
+        required: true
+      values:
+        type: array
+        description: Values to select
+        required: true
+        items:
+          type: string
+      element:
+        type: string
+        description: Human-readable element description
+
+  - name: browser_press_key
+    description: Press a keyboard key
+    parameters:
+      key:
+        type: string
+        description: "Key name (e.g., ArrowLeft, Enter, a)"
+        required: true
+
+  - name: browser_drag
+    description: Drag and drop between two elements
+    parameters:
+      startRef:
+        type: string
+        description: Source element reference
+        required: true
+      startElement:
+        type: string
+        description: Source element description
+      endRef:
+        type: string
+        description: Target element reference
+        required: true
+      endElement:
+        type: string
+        description: Target element description
+
+  # JavaScript execution
+  - name: browser_evaluate
+    description: Evaluate JavaScript expression on page or element
+    parameters:
+      function:
+        type: string
+        description: "JavaScript function: () => { } or (element) => { }"
+        required: true
+      ref:
+        type: string
+        description: Element reference if function takes element
+      element:
+        type: string
+        description: Human-readable element description
+
+  # Waiting
+  - name: browser_wait_for
+    description: Wait for text, element disappearance, or specified time
+    parameters:
+      text:
+        type: string
+        description: Text to wait for appearance
+      textGone:
+        type: string
+        description: Text to wait for disappearance
+      time:
+        type: number
+        description: Time to wait in seconds
+
+  # Dialogs and uploads
+  - name: browser_handle_dialog
+    description: Handle JavaScript dialogs (alert, confirm, prompt)
+    parameters:
+      accept:
+        type: boolean
+        description: Whether to accept the dialog
+        required: true
+      promptText:
+        type: string
+        description: Text for prompt dialogs
+
+  - name: browser_file_upload
+    description: Upload files to a file input
+    parameters:
+      paths:
+        type: array
+        description: Absolute paths to files to upload
+        items:
+          type: string
+
+  # Tab management
+  - name: browser_tabs
+    description: List, create, close, or select browser tabs
+    parameters:
+      action:
+        type: string
+        enum: [list, new, close, select]
+        required: true
+      index:
+        type: number
+        description: Tab index for close/select operations
+
+  # Debugging
+  - name: browser_console_messages
+    description: Get browser console messages
+    parameters:
+      level:
+        type: string
+        enum: [error, warning, info, debug]
+        default: info
+      filename:
+        type: string
+        description: Optional filename to save messages
+
+  - name: browser_network_requests
+    description: Get network requests since page load
+    parameters:
+      includeStatic:
+        type: boolean
+        description: Include static resources
+        default: false
+      filename:
+        type: string
+        description: Optional filename to save requests
+
+  # Window management
+  - name: browser_resize
+    description: Resize the browser window
+    parameters:
+      width:
+        type: number
+        description: Window width
+        required: true
+      height:
+        type: number
+        description: Window height
+        required: true
+
+  - name: browser_close
+    description: Close the browser page
+    parameters: {}
+
+  - name: browser_install
+    description: Install the browser if not present
+    parameters: {}
+
+# Resource definitions
+resources:
+  - uri: "browser://current"
+    name: current_page
+    description: The current browser page state
+    mimeType: application/json
+
+  - uri: "browser://history"
+    name: navigation_history
+    description: Browser navigation history
+    mimeType: application/json
+
+# Prompts for common operations
+prompts:
+  - name: navigate_and_extract
+    description: Navigate to a page and extract specific content
+    arguments:
+      - name: url
+        description: URL to navigate to
+        required: true
+      - name: selector
+        description: CSS selector for content to extract
+        required: true
+
+  - name: fill_and_submit_form
+    description: Fill out and submit a form
+    arguments:
+      - name: form_data
+        description: JSON object with field names and values
+        required: true
+
+  - name: scrape_list
+    description: Extract a list of items from a page
+    arguments:
+      - name: url
+        description: URL to scrape
+        required: true
+      - name: item_selector
+        description: Selector for list items
+        required: true

@@ -1,0 +1,11 @@
+source "https://rubygems.org"
+
+# Specify gem dependencies in active_prompt.gemspec
+gemspec
+
+group :development, :test do
+  gem "sqlite3"
+  gem "rspec-rails"
+  gem "factory_bot_rails"
+  gem "pry"
+end
