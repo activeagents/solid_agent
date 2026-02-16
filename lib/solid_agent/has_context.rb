@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 # HasContext provides database-backed prompt context management for agents.
 #
 # This concern adds the `has_context` class method which configures an agent
@@ -282,7 +284,23 @@ module SolidAgent
         define_method("add_#{context_name}_message") do |role:, content:, **attributes|
           ctx = send(context_name)
           raise SolidAgent::Error, "No #{context_name} loaded. Call load_#{context_name} or create_#{context_name} first." unless ctx
-          ctx.messages.create!(role: role, content: content, **attributes)
+
+          # Build message attributes
+          message_attrs = { role: role, content: content, **attributes }
+
+          # Add provenance data if the message model supports it
+          # Check via the context's message association if available
+          begin
+            if ctx.messages.respond_to?(:build)
+              sample = ctx.messages.build
+              message_attrs[:provenance] = current_provenance if sample.respond_to?(:provenance=)
+              message_attrs[:content_checksum] = Digest::MD5.hexdigest(content.to_s) if sample.respond_to?(:content_checksum=)
+            end
+          rescue StandardError
+            # Ignore if we can't check - just create without extra fields
+          end
+
+          ctx.messages.create!(**message_attrs)
         end
 
         # Define add_{name}_user_message method
@@ -409,6 +427,72 @@ module SolidAgent
       send("#{primary_context_name}_summary")
     end
 
+    # ============================================
+    # Provenance & Checksums
+    # ============================================
+
+    # Generate checksum for current prompt configuration
+    #
+    # @return [String] MD5 hex digest
+    def prompt_checksum
+      data = {
+        instructions: prompt_options[:instructions],
+        model: prompt_options[:model],
+        temperature: prompt_options[:temperature],
+        tools: prompt_options[:tools]&.map { |t| t[:name] }
+      }.compact
+      Digest::MD5.hexdigest(data.to_json)
+    end
+
+    # Generate checksum for current context state
+    #
+    # @return [String, nil] MD5 hex digest or nil if no context
+    def context_checksum
+      return nil unless context
+      Digest::MD5.hexdigest({
+        context_id: context.id,
+        message_count: context.messages.size,
+        last_message_id: context.messages.last&.id
+      }.to_json)
+    end
+
+    # Generate provenance record for current agent state
+    #
+    # @return [Hash] Full provenance data for tracing
+    def current_provenance
+      {
+        agent_class: self.class.name,
+        agent_checksum: agent_checksum,
+        prompt_checksum: prompt_checksum,
+        context_checksum: context_checksum,
+        context_id: context&.id,
+        action_name: action_name,
+        trace_id: prompt_options[:trace_id],
+        timestamp: Time.now.iso8601,
+        manifest_fingerprint: manifest_fingerprint
+      }.compact
+    end
+
+    # Generate checksum for the agent class configuration
+    #
+    # @return [String] MD5 hex digest
+    def agent_checksum
+      data = {
+        class: self.class.name,
+        prompt_options: self.class.prompt_options&.except(:access_token, :api_key),
+        embed_options: self.class.embed_options&.except(:access_token, :api_key)
+      }.compact
+      Digest::MD5.hexdigest(data.to_json)
+    end
+
+    # Get manifest fingerprint if agent was built from manifest
+    #
+    # @return [String, nil] Fingerprint or nil
+    def manifest_fingerprint
+      return nil unless self.class.respond_to?(:_manifest) && self.class._manifest
+      self.class._manifest.fingerprint
+    end
+
     private
 
     # After prompt callback - persists the rendered prompt message to context
@@ -435,8 +519,13 @@ module SolidAgent
 
       begin
         if generation_response.respond_to?(:message) && generation_response.message&.content.present?
-          context.record_generation!(generation_response)
-          Rails.logger.info "[SolidAgent] Persisted generation to context #{context.id}"
+          # Include provenance if the context supports it
+          if context.respond_to?(:record_generation_with_provenance!)
+            context.record_generation_with_provenance!(generation_response, current_provenance)
+          else
+            context.record_generation!(generation_response)
+          end
+          Rails.logger.info "[SolidAgent] Persisted generation to context #{context.id} (#{prompt_checksum[0..7]})"
         else
           Rails.logger.warn "[SolidAgent] Skipping persistence - no message content in response"
         end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 module SolidAgent
   module AgentManifest
     # Manifest represents a unified, portable AI agent definition.
@@ -222,6 +224,58 @@ module SolidAgent
       # @return [Tool, nil]
       def tool(tool_name)
         tools.find { |t| t.name.to_s == tool_name.to_s }
+      end
+
+      # ============================================
+      # Provenance & Checksums
+      # ============================================
+
+      # Generate MD5 checksum of manifest content
+      #
+      # @return [String] 32-character hex digest
+      def checksum
+        Digest::MD5.hexdigest(to_h.to_json)
+      end
+      alias_method :digest, :checksum
+
+      # Generate checksum of instructions only
+      #
+      # @return [String, nil] Hex digest or nil if no instructions
+      def instructions_checksum
+        return nil unless instructions.present?
+        Digest::MD5.hexdigest(instructions)
+      end
+
+      # Generate checksum of model configuration
+      #
+      # @return [String] Hex digest of model + config
+      def config_checksum
+        Digest::MD5.hexdigest({ model: model, config: config }.to_json)
+      end
+
+      # Generate full provenance record
+      #
+      # @return [Hash] Provenance data for tracing
+      def provenance
+        {
+          manifest_checksum: checksum,
+          instructions_checksum: instructions_checksum,
+          config_checksum: config_checksum,
+          name: name,
+          version: version,
+          model: model,
+          source_path: source_path,
+          source_format: source_format,
+          generated_at: Time.now.iso8601,
+          tools_checksums: tools.map { |t| { name: t.name, checksum: Digest::MD5.hexdigest(t.to_h.to_json) } }
+        }.compact
+      end
+
+      # Short identifier combining name, version, and checksum prefix
+      #
+      # @return [String] e.g., "research-agent@1.0.0#a1b2c3d4"
+      def fingerprint
+        "#{name}@#{version}##{checksum[0..7]}"
       end
 
       private
