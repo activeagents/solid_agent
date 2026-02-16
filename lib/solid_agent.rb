@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "solid_agent/version"
-require_relative "solid_agent/has_context"
-require_relative "solid_agent/has_tools"
-require_relative "solid_agent/streams_tool_updates"
 
 module SolidAgent
   class Error < StandardError; end
@@ -21,6 +18,13 @@ module SolidAgent
   self.message_class = "AgentMessage"
   self.generation_class = "AgentGeneration"
 end
+
+require_relative "solid_agent/has_context"
+require_relative "solid_agent/has_tools"
+require_relative "solid_agent/streams_tool_updates"
+require_relative "solid_agent/reasonable"
+require_relative "solid_agent/has_reasons"
+require_relative "solid_agent/agent_manifest"
 
 # Load Rails integration if Rails is present
 if defined?(Rails::Engine)

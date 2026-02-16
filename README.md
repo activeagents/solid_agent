@@ -39,7 +39,7 @@ $ gem install solid_agent
 Generate a new agent with context support:
 
 ```bash
-$ rails generate solid_agent:agent WritingAssistant --context --context_name conversation --contextable user
+$ rails generate solid_agent:agent WritingAssistant --context --context_name conversation --contextual user
 ```
 
 ### HasContext - Persistent Conversation History
@@ -50,10 +50,10 @@ Add database-backed context management to your agents:
 class WritingAssistantAgent < ApplicationAgent
   include SolidAgent::HasContext
 
-  has_context :conversation, contextable: :user
+  has_context :conversation, contextual: :user
 
   def improve
-    load_conversation(contextable: current_user)
+    load_conversation(contextable: current_user)  # contextable is the polymorphic association
     add_conversation_user_message(params[:message])
     prompt messages: conversation_messages
   end

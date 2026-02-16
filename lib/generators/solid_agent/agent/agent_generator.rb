@@ -15,7 +15,7 @@ module SolidAgent
       class_option :context_name, type: :string, default: nil,
         desc: "Custom context name (e.g., 'conversation', 'research_session')"
 
-      class_option :contextable, type: :string, default: nil,
+      class_option :contextual, type: :string, default: nil,
         desc: "Param key for auto-context (e.g., 'user', 'document')"
 
       class_option :tools, type: :boolean, default: false,
@@ -34,7 +34,7 @@ module SolidAgent
         @parent_class = options[:parent]
         @include_context = options[:context]
         @context_name = options[:context_name]
-        @contextable = options[:contextable]
+        @contextual = options[:contextual]
         @include_tools = options[:tools]
         @include_streaming = options[:streaming]
         @actions = options[:actions]

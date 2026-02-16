@@ -30,11 +30,19 @@ class String
   def blank?
     empty? || /\A[[:space:]]*\z/.match?(self)
   end
+
+  def presence
+    blank? ? nil : self
+  end
 end
 
 class Array
   def blank?
     empty?
+  end
+
+  def presence
+    empty? ? nil : self
   end
 end
 
@@ -42,12 +50,117 @@ class Hash
   def blank?
     empty?
   end
+
+  def present?
+    !blank?
+  end
+
+  def presence
+    empty? ? nil : self
+  end
 end
 
 # Mock ActionView for template errors
 module ActionView
   class MissingTemplate < StandardError; end
 end
+
+# Mock ActiveModel
+module ActiveModel
+  module Model
+    def self.included(base)
+      base.extend ClassMethods
+      base.include Validations
+    end
+
+    module ClassMethods
+      def model_name
+        @model_name ||= OpenStruct.new(
+          name: name&.split("::")&.last || "Model",
+          singular: (name&.split("::")&.last || "model").downcase,
+          plural: (name&.split("::")&.last || "models").downcase + "s"
+        )
+      end
+    end
+
+    def initialize(attributes = {})
+      attributes.each do |key, value|
+        send("#{key}=", value) if respond_to?("#{key}=")
+      end
+    end
+
+    def persisted?
+      false
+    end
+  end
+
+  module Validations
+    def self.included(base)
+      base.extend ClassMethods
+    end
+
+    module ClassMethods
+      def validates(field, options = {})
+        @validations ||= {}
+        @validations[field] = options
+      end
+
+      def validate(method_name = nil, &block)
+        @custom_validations ||= []
+        @custom_validations << (method_name || block)
+      end
+
+      def validations
+        @validations || {}
+      end
+
+      def custom_validations
+        @custom_validations || []
+      end
+    end
+
+    def valid?
+      @errors = ErrorsHash.new
+      self.class.validations.each do |field, options|
+        value = send(field)
+        if options[:presence] && value.blank?
+          @errors.add(field, "can't be blank")
+        end
+        if options[:format] && value.present?
+          regex = options[:format][:with]
+          unless value =~ regex
+            @errors.add(field, options[:format][:message] || "is invalid")
+          end
+        end
+        if options[:allow_blank] && value.blank?
+          # Skip other validations if blank is allowed and value is blank
+        end
+      end
+      @errors.empty?
+    end
+
+    def errors
+      @errors ||= ErrorsHash.new
+    end
+
+    class ErrorsHash < Hash
+      def add(field, message)
+        self[field] ||= []
+        self[field] << message
+      end
+
+      def full_messages
+        flat_map { |field, messages| messages.map { |m| "#{field} #{m}" } }
+      end
+
+      def empty?
+        values.all?(&:empty?)
+      end
+    end
+  end
+end
+
+require "ostruct"
 
 # Mock ActiveSupport::Concern before loading solid_agent
 module ActiveSupport
