@@ -23,6 +23,10 @@ class Create<%= message_class_name.pluralize %> < ActiveRecord::Migration<%= mig
       # Metadata
       t.jsonb :metadata, default: {}
 
+      # Provenance snapshot + content checksum (populated by HasContext)
+      t.jsonb :provenance, default: {}
+      t.string :content_checksum
+
       t.timestamps
     end
 

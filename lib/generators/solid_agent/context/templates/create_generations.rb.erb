@@ -28,11 +28,16 @@ class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= 
       # Timing
       t.float :duration_seconds
 
+      # Telemetry correlation + provenance snapshot
+      t.string :trace_id
+      t.jsonb :provenance, default: {}
+
       t.timestamps
     end
 
     add_index :<%= generation_table_name %>, :model
     add_index :<%= generation_table_name %>, :finish_reason
+    add_index :<%= generation_table_name %>, :trace_id
     add_index :<%= generation_table_name %>, [:<%= file_name %>_id, :created_at]
   end
 end

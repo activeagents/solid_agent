@@ -23,6 +23,11 @@ class CreateAgentMessages < ActiveRecord::Migration<%= migration_version %>
       # Metadata
       t.jsonb :metadata, default: {}
 
+      # Provenance snapshot + content checksum, populated automatically by
+      # SolidAgent::HasContext when present
+      t.jsonb :provenance, default: {}
+      t.string :content_checksum
+
       t.timestamps
     end
 

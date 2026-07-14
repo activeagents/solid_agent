@@ -40,29 +40,56 @@ class AgentContext < ApplicationRecord
 
   # Records a generation response and updates token counts
   #
+  # Response attributes are read defensively: ActiveAgent 1.x response
+  # objects don't expose #provider or #duration, and provider messages may
+  # not respond to #tool_calls — a hard read would raise inside
+  # SolidAgent's rescued persistence callback and silently drop the
+  # generation.
+  #
   # @param response [ActiveAgent::GenerationResponse] the generation response
+  # @param extra_attributes [Hash] additional column values (e.g. trace_id, provenance)
   # @return [AgentGeneration] the created generation record
-  def record_generation!(response)
-    generation = generations.create!(
+  def record_generation!(response, extra_attributes = {})
+    usage = response.respond_to?(:usage) ? response.usage : nil
+
+    generation = generations.create!({
       content: response.message&.content,
-      model: response.model,
-      provider: response.provider,
-      finish_reason: response.finish_reason,
-      input_tokens: response.usage&.input_tokens || 0,
-      output_tokens: response.usage&.output_tokens || 0,
+      model: response_value(response, :model),
+      provider: response_value(response, :provider),
+      finish_reason: response_value(response, :finish_reason),
+      input_tokens: usage&.input_tokens || 0,
+      output_tokens: usage&.output_tokens || 0,
       tool_calls: extract_tool_calls(response),
-      raw_response: response.raw_response,
-      duration_seconds: response.duration
-    )
+      raw_response: response_value(response, :raw_response),
+      duration_seconds: extract_duration_seconds(response, usage)
+    }.merge(extra_attributes))
 
     # Update cumulative token counts
     increment!(:total_input_tokens, generation.input_tokens)
     increment!(:total_output_tokens, generation.output_tokens)
 
     # Also add assistant message to the conversation
-    add_assistant_message(response.message&.content, tool_calls: generation.tool_calls)
+    add_assistant_message(response.message&.content, metadata: { "tool_calls" => generation.tool_calls })
 
     generation
+  end
+
+  # Records a generation together with its provenance snapshot, correlating
+  # it with the distributed trace via provenance[:trace_id].
+  #
+  # Called automatically by SolidAgent::HasContext when this method exists.
+  #
+  # @param response [ActiveAgent::GenerationResponse] the generation response
+  # @param provenance [Hash] provenance hash from HasContext#current_provenance
+  # @return [AgentGeneration] the created generation record
+  def record_generation_with_provenance!(response, provenance)
+    provenance = (provenance || {}).deep_stringify_keys
+
+    record_generation!(
+      response,
+      trace_id: provenance["trace_id"],
+      provenance: provenance
+    )
   end
 
   # Adds a user message to the context
@@ -114,14 +141,26 @@ class AgentContext < ApplicationRecord
 
   private
 
-  def extract_tool_calls(response)
-    return [] unless response.message&.tool_calls.present?
+  def response_value(response, method)
+    response.respond_to?(method) ? response.public_send(method) : nil
+  end
 
-    response.message.tool_calls.map do |tc|
+  def extract_duration_seconds(response, usage)
+    return response.duration if response.respond_to?(:duration) && response.duration
+
+    duration_ms = usage.respond_to?(:duration_ms) ? usage.duration_ms : nil
+    duration_ms ? duration_ms / 1000.0 : nil
+  end
+
+  def extract_tool_calls(response)
+    message = response.message
+    return [] unless message.respond_to?(:tool_calls) && message.tool_calls.present?
+
+    message.tool_calls.map do |tc|
       {
-        id: tc.id,
-        name: tc.name,
-        arguments: tc.arguments
+        id: tc.respond_to?(:id) ? tc.id : nil,
+        name: tc.respond_to?(:name) ? tc.name : nil,
+        arguments: tc.respond_to?(:arguments) ? tc.arguments : nil
       }
     end
   end

@@ -28,11 +28,21 @@ class CreateAgentGenerations < ActiveRecord::Migration<%= migration_version %>
       # Timing
       t.float :duration_seconds
 
+      # Telemetry correlation: the distributed trace this generation belongs
+      # to (e.g. ActiveAgent::Telemetry trace_id), threaded through
+      # prompt_options[:trace_id]
+      t.string :trace_id
+
+      # Provenance snapshot (agent/prompt/context checksums) captured at
+      # generation time — see SolidAgent::HasContext#current_provenance
+      t.jsonb :provenance, default: {}
+
       t.timestamps
     end
 
     add_index :agent_generations, :model
     add_index :agent_generations, :finish_reason
+    add_index :agent_generations, :trace_id
     add_index :agent_generations, [:agent_context_id, :created_at]
   end
 end

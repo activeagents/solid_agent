@@ -164,7 +164,7 @@ class HasContextTest < Minitest::Test
     context = agent.load_context(contextable: mock_user)
 
     assert_equal mock_user, context.contextable
-    assert_equal @agent_class.name, context.agent_name
+    assert_nil context.agent_name # anonymous class; real models require a named agent
     assert_equal "test_action", context.action_name
   end
 
@@ -175,7 +175,7 @@ class HasContextTest < Minitest::Test
 
     context = agent.load_context
 
-    assert_equal @agent_class.name, context.agent_name
+    assert_nil context.agent_name # anonymous class; real models require a named agent
     assert_equal "Be helpful", context.instructions
   end
 
@@ -434,6 +434,27 @@ class HasContextTest < Minitest::Test
     assert_includes agent.context.generations, mock_response
   end
 
+  def test_capture_and_persist_generation_prefers_provenance_recording
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.create_context
+    agent.prompt_options = { trace_id: "trace-abc-123" }
+
+    recorded = nil
+    agent.context.define_singleton_method(:record_generation_with_provenance!) do |response, provenance|
+      recorded = { response: response, provenance: provenance }
+    end
+
+    mock_response = SolidAgentTestHelpers::MockGenerationResponse.new(content: "Traced output")
+    agent.send(:capture_and_persist_generation) { mock_response }
+
+    refute_nil recorded
+    assert_equal mock_response, recorded[:response]
+    assert_equal "trace-abc-123", recorded[:provenance][:trace_id]
+    assert recorded[:provenance][:prompt_checksum]
+    assert recorded[:provenance][:context_checksum]
+  end
+
   # === Auto-context tests ===
 
   def test_has_context_with_contextual_stores_config
@@ -471,7 +492,7 @@ class HasContextTest < Minitest::Test
     agent.send(:ensure_conversation_exists)
 
     refute_nil agent.conversation
-    assert_equal @agent_class.name, agent.conversation.agent_name
+    assert_nil agent.conversation.agent_name # anonymous class; real models require a named agent
   end
 
   def test_ensure_context_exists_with_contextual_param
