@@ -53,6 +53,8 @@ class <%= class_name %> < ApplicationRecord
       finish_reason: response_value(response, :finish_reason),
       input_tokens: usage&.input_tokens || 0,
       output_tokens: usage&.output_tokens || 0,
+      cached_tokens: response_value(usage, :cached_tokens) || 0,
+      reasoning_tokens: response_value(usage, :reasoning_tokens) || 0,
       tool_calls: extract_tool_calls(response),
       raw_response: response_value(response, :raw_response),
       duration_seconds: extract_duration_seconds(response, usage)

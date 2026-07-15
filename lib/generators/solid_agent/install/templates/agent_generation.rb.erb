@@ -27,6 +27,16 @@ class AgentGeneration < ApplicationRecord
     input_tokens + output_tokens
   end
 
+  # Provider prompt-cache hit on this generation?
+  def cache_hit?
+    cached_tokens.to_i.positive?
+  end
+
+  # Extended thinking captured?
+  def thinking?
+    reasoning_tokens.to_i.positive?
+  end
+
   # Check if this generation included tool calls
   def has_tool_calls?
     tool_calls.present? && tool_calls.any?

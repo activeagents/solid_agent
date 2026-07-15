@@ -18,6 +18,9 @@ class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= 
       # Token usage for this generation
       t.integer :input_tokens, default: 0
       t.integer :output_tokens, default: 0
+      # Provider prompt-cache hits and extended-thinking usage
+      t.integer :cached_tokens, default: 0
+      t.integer :reasoning_tokens, default: 0
 
       # Tool calls made in this generation
       t.jsonb :tool_calls, default: []
