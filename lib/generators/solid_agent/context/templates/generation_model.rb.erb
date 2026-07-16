@@ -10,10 +10,21 @@ class <%= generation_class_name %> < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :by_model, ->(model) { where(model: model) }
   scope :with_tool_calls, -> { where.not(tool_calls: []) }
+  scope :with_trace, ->(trace_id) { where(trace_id: trace_id) }
   scope :completed, -> { where(finish_reason: "stop") }
 
   def total_tokens
     input_tokens + output_tokens
+  end
+
+  # Provider prompt-cache hit on this generation?
+  def cache_hit?
+    cached_tokens.to_i.positive?
+  end
+
+  # Extended thinking captured?
+  def thinking?
+    reasoning_tokens.to_i.positive?
   end
 
   def has_tool_calls?

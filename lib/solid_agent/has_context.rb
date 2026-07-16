@@ -475,12 +475,15 @@ module SolidAgent
 
     # Generate checksum for the agent class configuration
     #
+    # Class-level options are read defensively so provenance never raises
+    # inside the (rescued) persistence path and silently drops generations.
+    #
     # @return [String] MD5 hex digest
     def agent_checksum
       data = {
         class: self.class.name,
-        prompt_options: self.class.prompt_options&.except(:access_token, :api_key),
-        embed_options: self.class.embed_options&.except(:access_token, :api_key)
+        prompt_options: class_options(:prompt_options),
+        embed_options: class_options(:embed_options)
       }.compact
       Digest::MD5.hexdigest(data.to_json)
     end
@@ -494,6 +497,13 @@ module SolidAgent
     end
 
     private
+
+    # Class-level option hash for checksums, or nil when unavailable
+    def class_options(reader)
+      return nil unless self.class.respond_to?(reader)
+
+      self.class.public_send(reader)&.except(:access_token, :api_key)
+    end
 
     # After prompt callback - persists the rendered prompt message to context
     def persist_prompt_to_context

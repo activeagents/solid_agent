@@ -18,6 +18,9 @@ class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= 
       # Token usage for this generation
       t.integer :input_tokens, default: 0
       t.integer :output_tokens, default: 0
+      # Provider prompt-cache hits and extended-thinking usage
+      t.integer :cached_tokens, default: 0
+      t.integer :reasoning_tokens, default: 0
 
       # Tool calls made in this generation
       t.jsonb :tool_calls, default: []
@@ -28,11 +31,16 @@ class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= 
       # Timing
       t.float :duration_seconds
 
+      # Telemetry correlation + provenance snapshot
+      t.string :trace_id
+      t.jsonb :provenance, default: {}
+
       t.timestamps
     end
 
     add_index :<%= generation_table_name %>, :model
     add_index :<%= generation_table_name %>, :finish_reason
+    add_index :<%= generation_table_name %>, :trace_id
     add_index :<%= generation_table_name %>, [:<%= file_name %>_id, :created_at]
   end
 end

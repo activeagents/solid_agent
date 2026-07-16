@@ -40,26 +40,44 @@ class <%= class_name %> < ApplicationRecord
     options&.dig("input_params") || options&.dig(:input_params) || {}
   end
 
-  # Records a generation response and updates token counts
-  def record_generation!(response)
-    generation = generations.create!(
+  # Records a generation response and updates token counts.
+  # Response attributes are read defensively — see the install generator's
+  # AgentContext template for details.
+  def record_generation!(response, extra_attributes = {})
+    usage = response.respond_to?(:usage) ? response.usage : nil
+
+    generation = generations.create!({
       content: response.message&.content,
-      model: response.model,
-      provider: response.provider,
-      finish_reason: response.finish_reason,
-      input_tokens: response.usage&.input_tokens || 0,
-      output_tokens: response.usage&.output_tokens || 0,
+      model: response_value(response, :model),
+      provider: response_value(response, :provider),
+      finish_reason: response_value(response, :finish_reason),
+      input_tokens: usage&.input_tokens || 0,
+      output_tokens: usage&.output_tokens || 0,
+      cached_tokens: response_value(usage, :cached_tokens) || 0,
+      reasoning_tokens: response_value(usage, :reasoning_tokens) || 0,
       tool_calls: extract_tool_calls(response),
-      raw_response: response.raw_response,
-      duration_seconds: response.duration
-    )
+      raw_response: response_value(response, :raw_response),
+      duration_seconds: extract_duration_seconds(response, usage)
+    }.merge(extra_attributes))
 
     increment!(:total_input_tokens, generation.input_tokens)
     increment!(:total_output_tokens, generation.output_tokens)
 
-    add_assistant_message(response.message&.content, tool_calls: generation.tool_calls)
+    add_assistant_message(response.message&.content, metadata: { "tool_calls" => generation.tool_calls })
 
     generation
+  end
+
+  # Records a generation together with its provenance snapshot (called
+  # automatically by SolidAgent::HasContext when this method exists).
+  def record_generation_with_provenance!(response, provenance)
+    provenance = (provenance || {}).deep_stringify_keys
+
+    record_generation!(
+      response,
+      trace_id: provenance["trace_id"],
+      provenance: provenance
+    )
   end
 
   def add_user_message(content, **attributes)
@@ -90,11 +108,27 @@ class <%= class_name %> < ApplicationRecord
 
   private
 
-  def extract_tool_calls(response)
-    return [] unless response.message&.tool_calls.present?
+  def response_value(response, method)
+    response.respond_to?(method) ? response.public_send(method) : nil
+  end
 
-    response.message.tool_calls.map do |tc|
-      { id: tc.id, name: tc.name, arguments: tc.arguments }
+  def extract_duration_seconds(response, usage)
+    return response.duration if response.respond_to?(:duration) && response.duration
+
+    duration_ms = usage.respond_to?(:duration_ms) ? usage.duration_ms : nil
+    duration_ms ? duration_ms / 1000.0 : nil
+  end
+
+  def extract_tool_calls(response)
+    message = response.message
+    return [] unless message.respond_to?(:tool_calls) && message.tool_calls.present?
+
+    message.tool_calls.map do |tc|
+      {
+        id: tc.respond_to?(:id) ? tc.id : nil,
+        name: tc.respond_to?(:name) ? tc.name : nil,
+        arguments: tc.respond_to?(:arguments) ? tc.arguments : nil
+      }
     end
   end
 end

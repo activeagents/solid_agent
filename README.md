@@ -67,6 +67,29 @@ This generates helper methods like:
 - `add_conversation_assistant_message(content)` - Add an AI response
 - `conversation_result` - Get the last assistant message
 
+> **Note:** contexts are persisted under `self.class.name` — agents built
+> with anonymous `Class.new(...)` must define a class name or context
+> creation will fail the `agent_name` presence validation.
+
+#### Telemetry trace correlation
+
+Every persisted generation records a `trace_id` and a provenance snapshot
+(agent/prompt/context checksums). Thread a distributed trace id — for
+example an `ActiveAgent::Telemetry` trace — through prompt options and it
+lands on the `agent_generations` row, joining conversation records to
+telemetry traces:
+
+```ruby
+def improve
+  prompt_options[:trace_id] = my_telemetry_trace_id
+  load_conversation(contextable: current_user)
+  prompt messages: conversation_messages
+end
+```
+
+Query with `AgentGeneration.with_trace(trace_id)` or
+`AgentContext.with_trace(trace_id)`.
+
 ### HasTools - Declarative Tool Schemas
 
 Define tools inline with a clean DSL:

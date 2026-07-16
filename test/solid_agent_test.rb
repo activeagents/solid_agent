@@ -34,6 +34,12 @@ class SolidAgentIntegrationTest < Minitest::Test
   # Simulates WritingAssistantAgent pattern from fizzy/writebook
   def test_writing_assistant_agent_pattern
     agent_class = Class.new(SolidAgentTestHelpers::MockBaseAgent) do
+      # Anonymous classes have a nil name; give this one a real one so the
+      # agent_name persistence below is actually exercised
+      def self.name
+        "WritingAssistantAgent"
+      end
+
       include SolidAgent::HasContext
 
       has_context
