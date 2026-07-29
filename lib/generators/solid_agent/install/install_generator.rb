@@ -29,6 +29,9 @@ module SolidAgent
 
         migration_template "create_agent_generations.rb.erb",
           "db/migrate/create_agent_generations.rb"
+
+        migration_template "create_agent_memories.rb.erb",
+          "db/migrate/create_agent_memories.rb"
       end
 
       def create_models
@@ -37,6 +40,8 @@ module SolidAgent
         template "agent_context.rb.erb", "app/models/agent_context.rb"
         template "agent_message.rb.erb", "app/models/agent_message.rb"
         template "agent_generation.rb.erb", "app/models/agent_generation.rb"
+        template "agent_memory.rb.erb", "app/models/agent_memory.rb"
+        template "agent_memory_entry.rb.erb", "app/models/agent_memory_entry.rb"
       end
 
       def create_initializer
