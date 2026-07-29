@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "solid_agent/version"
+require_relative "solid_agent/tool_cache"
 
 module SolidAgent
   class Error < StandardError; end

@@ -527,6 +527,8 @@ module SolidAgent
     def persist_generation_to_context
       return unless context && generation_response
 
+      persist_tool_messages_to_context
+
       begin
         if generation_response.respond_to?(:message) && generation_response.message&.content.present?
           # Include provenance if the context supports it
@@ -543,6 +545,41 @@ module SolidAgent
         Rails.logger.error "[SolidAgent] Failed to persist generation: #{e.message}"
         Rails.logger.error e.backtrace.first(5).join("\n")
       end
+    end
+
+    # Persists the tool/MCP interaction stream (tool result messages from
+    # the response's message stack) to the context, so conversations show
+    # the full agent <-> tool exchange, not just the final assistant text.
+    #
+    # Requires the context model to expose add_tool_message (the install
+    # generator's AgentContext does); contexts without it are skipped.
+    # Messages are deduped by tool_call_id so re-persisting a shared
+    # message stack (multi-turn conversations) doesn't duplicate rows.
+    def persist_tool_messages_to_context
+      return unless context.respond_to?(:add_tool_message)
+      return unless generation_response.respond_to?(:messages)
+
+      Array(generation_response.messages).each do |message|
+        next unless message.respond_to?(:role) && message.role.to_s == "tool"
+
+        tool_call_id = message.respond_to?(:tool_call_id) ? message.tool_call_id : nil
+        next if tool_call_id.present? && tool_message_persisted?(tool_call_id)
+
+        context.add_tool_message(
+          tool_call_id: tool_call_id,
+          tool_name: (message.name if message.respond_to?(:name)),
+          result: (message.content if message.respond_to?(:content))
+        )
+      end
+    rescue => e
+      Rails.logger.error "[SolidAgent] Failed to persist tool messages: #{e.message}"
+    end
+
+    def tool_message_persisted?(tool_call_id)
+      return false unless context.respond_to?(:messages)
+
+      scope = context.messages
+      scope.respond_to?(:exists?) && scope.exists?(role: "tool", tool_call_id: tool_call_id)
     end
   end
 end
