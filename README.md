@@ -19,6 +19,7 @@ Agent-side concerns:
 Model-side and standalone:
 
 - **Reasonable** - Persist reasoning content/tokens/metadata on your generation records
+- **AgentRun** - Durable run records (installed by the generator): lifecycle status, append-only progress events for live UIs, token/duration accounting, and instruction-fingerprint cohorts for comparing configuration changes
 - **ToolCache** - Cache tool/MCP/service results by `(tool, normalized args)` with TTL, backed by `Rails.cache`; error results are never cached and replays are tagged `cached: true`
 - **ModelPricing** - Token-count → estimated USD cost, using RubyLLM's model registry when available with a static pattern-table fallback
 - **AgentManifest** - Load, validate, export, and build agent classes from portable manifests (`.agent.md`, dotprompt, CrewAI)
@@ -41,7 +42,7 @@ $ bundle install
 
 ### Quick Start
 
-Install the persistence tables and models (`AgentContext`, `AgentMessage`, `AgentGeneration`, `AgentMemory`, `AgentMemoryEntry`), then generate an agent with context support:
+Install the persistence tables and models (`AgentContext`, `AgentMessage`, `AgentGeneration`, `AgentMemory`, `AgentMemoryEntry`, `AgentRun`), then generate an agent with context support:
 
 ```bash
 $ rails generate solid_agent:install
@@ -168,6 +169,22 @@ result[:cached] # => true on a replay
 ```
 
 Error-shaped results (`{ error: ... }`) are never cached, so transient failures don't stick; cache keys are stable across argument ordering and symbol/string keys.
+
+### AgentRun - Durable Run Records
+
+Executors record each agent execution as an `AgentRun`: lifecycle (`start!`/`complete!`/`fail!`/`cancel!`), correlation with contexts, generations, and telemetry via `trace_id`, and an append-only progress-event stream a UI can poll mid-run:
+
+```ruby
+run = AgentRun.create!(runnable: document, agent_name: "SupportAgent", input_prompt: message)
+run.record_instructions(agent.instructions) # cohort fingerprint ("calm-heron")
+run.start!
+run.append_event(kind: "tool", label: "fetch_url", eid: "e1", status: "started")
+# ... execute ...
+run.append_event(kind: "tool", label: "fetch_url", eid: "e1", status: "done", duration_ms: 120)
+run.complete!(output: response.message.content, input_tokens: usage.input_tokens, output_tokens: usage.output_tokens)
+```
+
+`AgentRun#instructions_codename` names each instruction cohort deterministically (`SolidAgent::RunFingerprint`), so comparing "what changed between these two batches of runs" reads as `calm-heron` vs `misty-atoll` instead of hex digests.
 
 ### ModelPricing - Estimated Spend
 

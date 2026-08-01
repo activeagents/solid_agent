@@ -3,6 +3,7 @@
 require_relative "solid_agent/version"
 require_relative "solid_agent/tool_cache"
 require_relative "solid_agent/model_pricing"
+require_relative "solid_agent/run_fingerprint"
 
 module SolidAgent
   class Error < StandardError; end
