@@ -2,6 +2,7 @@
 
 require_relative "solid_agent/version"
 require_relative "solid_agent/tool_cache"
+require_relative "solid_agent/model_pricing"
 
 module SolidAgent
   class Error < StandardError; end

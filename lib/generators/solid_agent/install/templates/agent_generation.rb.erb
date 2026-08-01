@@ -60,11 +60,17 @@ class AgentGeneration < ApplicationRecord
   # Returns the cost estimate based on token usage (override with your pricing)
   #
   # @param input_price_per_million [Float] price per million input tokens
-  # @param output_price_per_million [Float] price per million output tokens
-  # @return [Float] estimated cost in dollars
-  def estimated_cost(input_price_per_million: 3.0, output_price_per_million: 15.0)
-    input_cost = (input_tokens / 1_000_000.0) * input_price_per_million
-    output_cost = (output_tokens / 1_000_000.0) * output_price_per_million
-    input_cost + output_cost
+  # @param output_price_per_million [Float, nil] price per million output tokens
+  # @return [Float, nil] estimated cost in dollars, nil when nothing to price
+  def estimated_cost(input_price_per_million: nil, output_price_per_million: nil)
+    if input_price_per_million && output_price_per_million
+      input_cost = (input_tokens / 1_000_000.0) * input_price_per_million
+      output_cost = (output_tokens / 1_000_000.0) * output_price_per_million
+      input_cost + output_cost
+    else
+      # Per-model rates from SolidAgent::ModelPricing (RubyLLM registry
+      # when available, static table otherwise)
+      SolidAgent::ModelPricing.estimate(model: model, input_tokens: input_tokens, output_tokens: output_tokens)
+    end
   end
 end
