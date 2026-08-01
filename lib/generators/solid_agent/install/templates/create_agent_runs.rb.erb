@@ -1,0 +1,46 @@
+# frozen_string_literal: true
+
+class CreateAgentRuns < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :agent_runs do |t|
+      # What the run executed against (an Agent record, a workflow, any
+      # AR subject) — optional, so bare executors can still record runs.
+      t.references :runnable, polymorphic: true, index: true
+
+      # Correlation keys shared with agent_contexts/agent_generations and
+      # telemetry traces.
+      t.string :agent_name
+      t.string :action_name
+      t.string :trace_id
+
+      t.string :status, null: false, default: "pending"
+
+      t.text :input_prompt
+      t.jsonb :input_params, default: {}
+      t.text :output
+      t.jsonb :output_metadata, default: {}
+      t.text :error_message
+
+      # Append-only progress events ({at, eid, kind, label, status,
+      # detail, duration_ms}) streamed to pollers mid-run.
+      t.jsonb :events, default: []
+
+      # 8-char fingerprint of the instructions the run executed under —
+      # the cohort grouping key for instruction/model comparisons.
+      t.string :instructions_digest
+
+      t.integer :input_tokens, default: 0
+      t.integer :output_tokens, default: 0
+      t.integer :duration_ms
+      t.datetime :started_at
+      t.datetime :completed_at
+
+      t.timestamps
+    end
+
+    add_index :agent_runs, :status
+    add_index :agent_runs, :trace_id
+    add_index :agent_runs, :instructions_digest
+    add_index :agent_runs, :created_at
+  end
+end

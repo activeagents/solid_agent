@@ -1,0 +1,35 @@
+# frozen_string_literal: true
+
+class CreateAgentMemories < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :agent_memories do |t|
+      # The subject the memory is about (an Agent record, User, Project...).
+      # Any agent operating on the same subject + scope shares the memory,
+      # which is what makes it a handoff channel between agents.
+      t.references :memorable, polymorphic: true, index: true
+
+      # Namespace so a subject can carry independent memory streams.
+      t.string :scope, null: false, default: "default"
+
+      t.timestamps
+    end
+    add_index :agent_memories, [ :memorable_type, :memorable_id, :scope ], unique: true
+
+    create_table :agent_memory_entries do |t|
+      t.references :agent_memory, null: false, foreign_key: true
+
+      # The summary note the agent chose to persist.
+      t.text :content, null: false
+
+      # Which agent class wrote it (handoff provenance).
+      t.string :source_agent
+
+      # Optional label: fact, task, handoff, ...
+      t.string :category
+
+      t.timestamps
+    end
+    add_index :agent_memory_entries, [ :agent_memory_id, :created_at ]
+    add_index :agent_memory_entries, :category
+  end
+end

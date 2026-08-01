@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "solid_agent/version"
+require_relative "solid_agent/tool_cache"
+require_relative "solid_agent/model_pricing"
+require_relative "solid_agent/run_fingerprint"
 
 module SolidAgent
   class Error < StandardError; end
@@ -59,6 +62,7 @@ module SolidAgent
 end
 
 require_relative "solid_agent/has_context"
+require_relative "solid_agent/has_memory"
 require_relative "solid_agent/has_tools"
 require_relative "solid_agent/streams_tool_updates"
 require_relative "solid_agent/reasonable"

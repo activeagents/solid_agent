@@ -527,6 +527,8 @@ module SolidAgent
     def persist_generation_to_context
       return unless context && generation_response
 
+      persist_tool_messages_to_context
+
       begin
         if generation_response.respond_to?(:message) && generation_response.message&.content.present?
           # Include provenance if the context supports it
@@ -543,6 +545,89 @@ module SolidAgent
         Rails.logger.error "[SolidAgent] Failed to persist generation: #{e.message}"
         Rails.logger.error e.backtrace.first(5).join("\n")
       end
+    end
+
+    # Overridable enrichment hook for tool persistence. Executors that run
+    # tools server-side (a platform's execution service, a job) can
+    # override this to return their own invocation records — an array of
+    # hashes with symbol keys :tool_call_id, :name, :arguments and
+    # :duration_ms (all optional) — so persisted tool messages carry the
+    # call's arguments and timing, which provider response messages don't
+    # include. Records are matched to response tool messages by
+    # tool_call_id when both sides have one, otherwise by position.
+    def tool_invocations
+      []
+    end
+
+    # Persists the tool/MCP interaction stream (tool result messages from
+    # the response's message stack) to the context, so conversations show
+    # the full agent <-> tool exchange, not just the final assistant text.
+    #
+    # Requires the context model to expose add_tool_message (the install
+    # generator's AgentContext does); contexts without it are skipped.
+    # Messages are deduped by tool_call_id so re-persisting a shared
+    # message stack (multi-turn conversations) doesn't duplicate rows.
+    def persist_tool_messages_to_context
+      return unless context.respond_to?(:add_tool_message)
+      return unless generation_response.respond_to?(:messages)
+
+      tool_index = -1
+      Array(generation_response.messages).each do |message|
+        next unless message.respond_to?(:role) && message.role.to_s == "tool"
+
+        tool_index += 1
+        tool_call_id = message.respond_to?(:tool_call_id) ? message.tool_call_id : nil
+        next if tool_call_id.present? && tool_message_persisted?(tool_call_id)
+
+        invocation = tool_invocation_for(tool_call_id, tool_index)
+        # Provider tool messages often carry no name (Ollama's don't); the
+        # executor's invocation record is the fallback.
+        name = (message.name if message.respond_to?(:name))
+        name = invocation[:name] if !name.present? && invocation
+
+        attributes = {
+          tool_call_id: tool_call_id,
+          tool_name: name,
+          result: (message.content if message.respond_to?(:content))
+        }
+        if invocation && tool_message_details_supported?
+          attributes[:arguments] = invocation[:arguments]
+          attributes[:duration_ms] = invocation[:duration_ms]
+        end
+        context.add_tool_message(**attributes)
+      end
+    rescue => e
+      Rails.logger.error "[SolidAgent] Failed to persist tool messages: #{e.message}"
+    end
+
+    def tool_message_persisted?(tool_call_id)
+      return false unless context.respond_to?(:messages)
+
+      scope = context.messages
+      scope.respond_to?(:exists?) && scope.exists?(role: "tool", tool_call_id: tool_call_id)
+    end
+
+    # Finds the executor invocation record for a response tool message —
+    # by tool_call_id when the record carries one, else by position among
+    # the response's tool messages.
+    def tool_invocation_for(tool_call_id, index)
+      invocations = Array(tool_invocations)
+      return nil if invocations.empty?
+
+      if tool_call_id.present?
+        match = invocations.find { |inv| inv[:tool_call_id] && inv[:tool_call_id].to_s == tool_call_id.to_s }
+        return match if match
+      end
+      invocations[index]
+    end
+
+    # Whether the context's add_tool_message accepts the arguments:/
+    # duration_ms: enrichment keywords (older generated models don't).
+    def tool_message_details_supported?
+      parameters = context.method(:add_tool_message).parameters
+      parameters.any? { |type, param_name| type == :keyrest || ([ :key, :keyreq ].include?(type) && param_name == :arguments) }
+    rescue ::NameError
+      false
     end
   end
 end
