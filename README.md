@@ -13,6 +13,7 @@ Agent-side concerns:
 - **HasContext** - Database-backed prompt context management for maintaining conversation history and agent state, including the full tool/MCP interaction stream
 - **HasMemory** - An agent-curated summary list the model reads/writes via `save_memory`/`recall_memory` function-calling tools; scoped to a subject record so agents hand off to each other through shared memory
 - **HasTools** - Declarative, schema-based tool definitions compatible with LLM function-calling APIs
+- **Delegates** - Agent-as-tool delegation: hand part of a job to a sub-agent under a declared input/output schema, a cost & latency budget, and a swappable backend
 - **HasReasons** - Capture and inspect extended-thinking/reasoning output across a generation
 - **StreamsToolUpdates** - Real-time UI feedback during tool execution via ActionCable
 
@@ -123,6 +124,74 @@ end
 ```
 
 Or use JSON templates in `app/views/research_agent/tools/search.json.erb`.
+
+### Delegates - Agent-as-Tool Delegation
+
+A tool is a Ruby method your model can call. A **delegation** is another agent your model can call — with its own instructions, templates, model, and budget. A specialist agent stays specialist, and the generalist orchestrating it never inherits its prompt.
+
+Three declarations, each where the knowledge lives. **The contract** goes on the sub-agent, next to the action it describes:
+
+```ruby
+class SummarizerAgent < ApplicationAgent
+  include SolidAgent::Delegates
+
+  generate_with :openai, model: "gpt-4o-mini"
+
+  delegation :summarize, description: "Condense a document into key points" do
+    string  :text, required: true, description: "Full document text"
+    integer :limit, description: "Maximum number of key points"
+
+    returns do                       # optional — becomes the sub-agent's response_format
+      string :summary, required: true, description: "One-paragraph summary"
+      array  :points, of: :string, required: true, description: "The key points"
+    end
+  end
+
+  def summarize(text:, limit: 5)
+    prompt message: "Summarize in #{limit} points: #{text}"
+  end
+end
+```
+
+**The budget** goes at the call site, because only the caller knows what the work is worth. **The backend** goes there too, so the same sub-agent can run on different silicon in different parents:
+
+```ruby
+class ResearchAgent < ApplicationAgent
+  include SolidAgent::Delegates
+
+  generate_with :openai, model: "gpt-4o"
+
+  delegation_budget max_calls: 8, max_duration: 60      # every delegation, together
+
+  delegate_to SummarizerAgent, budget: { max_calls: 3, timeout: 20 }
+  delegate_to FactCheckAgent, as: :verify,
+              backend: { provider: :anthropic, model: "claude-haiku-4-5" }
+
+  def research(topic:)
+    prompt message: "Research #{topic}. Summarize sources before citing them.",
+           tools: delegated_tools
+  end
+end
+```
+
+Callers never restate the sub-agent's parameters — `delegated_tools` builds them from the contract. A declared `returns` schema is parsed and checked before the caller sees it, so `summarize` hands back `{ summary: "...", points: [...] }` rather than text to re-parse.
+
+Exhausting a budget returns a structured result the model can reason about instead of raising mid-conversation:
+
+```ruby
+{ error: "budget_exceeded", limit: "max_calls", allowed: 3, used: 3,
+  message: "Delegation budget exhausted... answer with the information you already have." }
+```
+
+Cost budgets price themselves through `SolidAgent::ModelPricing`, so `max_cost: 0.25` works with no configuration. Spend is readable after a generation via `delegation_ledger`.
+
+Because `delegate_to` defines a real instance method, a delegation is testable with no model in the loop — and `backend: :mock` runs the whole thing offline with the contract unchanged:
+
+```ruby
+agent.summarize(text: "...")   #=> { summary: "...", points: [...] }
+```
+
+See [docs/delegation.md](docs/delegation.md) for budgets, backends, `auto_delegate!`, and instrumentation.
 
 ### StreamsToolUpdates - Real-Time Feedback
 

@@ -64,6 +64,7 @@ end
 require_relative "solid_agent/has_context"
 require_relative "solid_agent/has_memory"
 require_relative "solid_agent/has_tools"
+require_relative "solid_agent/delegates"
 require_relative "solid_agent/streams_tool_updates"
 require_relative "solid_agent/reasonable"
 require_relative "solid_agent/has_reasons"
