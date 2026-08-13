@@ -439,9 +439,40 @@ module SolidAgent
         instructions: prompt_options[:instructions],
         model: prompt_options[:model],
         temperature: prompt_options[:temperature],
-        tools: prompt_options[:tools]&.map { |t| t[:name] }
+        tools: prompt_tool_roster.map { |tool| tool[:name] }.presence
       }.compact
       Digest::MD5.hexdigest(data.to_json)
+    end
+
+    # The tool schemas this generation actually offered the provider, as a
+    # compact roster.
+    #
+    # The full schemas are too heavy to persist on every generation, and
+    # the checksum above only proves the roster *changed* — it can't say
+    # what the agent could do. Recording names, descriptions and parameter
+    # keys makes the tool surface auditable straight from the generation
+    # records, without requiring telemetry to be switched on.
+    #
+    # Shape matches ActiveAgent's `prompt.input.tools` span attribute so a
+    # dashboard parses one format from both sources.
+    #
+    # @return [Array<Hash>] entries with :name, :description, :parameters
+    def prompt_tool_roster
+      Array(prompt_options[:tools]).filter_map do |tool|
+        next unless tool.respond_to?(:[])
+
+        name = tool[:name] || tool["name"]
+        next if name.blank?
+
+        parameters = tool[:parameters] || tool["parameters"] || tool[:input_schema] || tool["input_schema"]
+        properties = parameters.is_a?(Hash) ? (parameters[:properties] || parameters["properties"]) : nil
+
+        {
+          name: name.to_s,
+          description: (tool[:description] || tool["description"]).to_s.presence,
+          parameters: properties.is_a?(Hash) ? properties.keys.map(&:to_s) : []
+        }.compact
+      end
     end
 
     # Generate checksum for current context state
@@ -469,7 +500,8 @@ module SolidAgent
         action_name: action_name,
         trace_id: prompt_options[:trace_id],
         timestamp: Time.now.iso8601,
-        manifest_fingerprint: manifest_fingerprint
+        manifest_fingerprint: manifest_fingerprint,
+        tools: prompt_tool_roster.presence
       }.compact
     end
 

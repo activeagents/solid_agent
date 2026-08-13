@@ -455,6 +455,93 @@ class HasContextTest < Minitest::Test
     assert recorded[:provenance][:context_checksum]
   end
 
+  # === Tool roster / provenance tests ===
+
+  def test_prompt_tool_roster_captures_the_offered_tools
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.prompt_options = {
+      tools: [
+        {
+          name: "lookup_order",
+          description: "Look up an order",
+          parameters: { type: "object", properties: { order_id: { type: "string" } } }
+        }
+      ]
+    }
+
+    roster = agent.prompt_tool_roster
+
+    assert_equal 1, roster.size
+    assert_equal "lookup_order", roster.first[:name]
+    assert_equal "Look up an order", roster.first[:description]
+    assert_equal [ "order_id" ], roster.first[:parameters]
+  end
+
+  def test_prompt_tool_roster_handles_string_keys_and_input_schema
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.prompt_options = {
+      tools: [
+        { "name" => "search", "input_schema" => { "properties" => { "query" => { "type" => "string" } } } }
+      ]
+    }
+
+    roster = agent.prompt_tool_roster
+
+    assert_equal "search", roster.first[:name]
+    assert_equal [ "query" ], roster.first[:parameters]
+  end
+
+  def test_prompt_tool_roster_skips_unusable_entries
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.prompt_options = { tools: [ { description: "no name" }, nil, { name: "" }, { name: "ok" } ] }
+
+    assert_equal [ "ok" ], agent.prompt_tool_roster.map { |tool| tool[:name] }
+  end
+
+  def test_prompt_tool_roster_is_empty_without_tools
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.prompt_options = {}
+
+    assert_empty agent.prompt_tool_roster
+  end
+
+  def test_current_provenance_records_the_offered_tool_roster
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.create_context
+    agent.prompt_options = { tools: [ { name: "mcp__git__git_status", description: "Repo status" } ] }
+
+    provenance = agent.current_provenance
+
+    assert_equal [ "mcp__git__git_status" ], provenance[:tools].map { |tool| tool[:name] }
+    assert_equal "Repo status", provenance[:tools].first[:description]
+  end
+
+  def test_current_provenance_omits_tools_when_none_were_offered
+    @agent_class.has_context
+    agent = @agent_class.new
+    agent.create_context
+    agent.prompt_options = {}
+
+    refute_includes agent.current_provenance.keys, :tools
+  end
+
+  def test_prompt_checksum_changes_when_the_tool_roster_changes
+    @agent_class.has_context
+    agent = @agent_class.new
+
+    agent.prompt_options = { tools: [ { name: "a" } ] }
+    first = agent.prompt_checksum
+
+    agent.prompt_options = { tools: [ { name: "a" }, { name: "b" } ] }
+
+    refute_equal first, agent.prompt_checksum
+  end
+
   # === Auto-context tests ===
 
   def test_has_context_with_contextual_stores_config
