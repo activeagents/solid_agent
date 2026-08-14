@@ -151,14 +151,19 @@ module SolidAgent
 
       def infer_class_names(context_name, explicit_class_name)
         if context_name == :context
+          # The default trio is configurable — SolidAgent.context_class and
+          # friends are what the shipped initializer tells hosts to set, so
+          # they have to be read here rather than hardcoded.
           {
-            context: "AgentContext",
-            message: "AgentMessage",
-            generation: "AgentGeneration"
+            context: SolidAgent.context_class,
+            message: SolidAgent.message_class,
+            generation: SolidAgent.generation_class
           }
         elsif explicit_class_name
-          # If class_name is provided, infer message/generation from it
-          base = explicit_class_name.to_s.delete_suffix("Context").delete_suffix("Session")
+          # If class_name is provided, infer message/generation from it.
+          # Strip at most one suffix: chaining delete_suffix would reduce
+          # "SessionContext" to "" and yield a bare "Message"/"Generation".
+          base = SolidAgent::ModelNaming.base_for(explicit_class_name)
           {
             context: explicit_class_name,
             message: "#{base}Message",

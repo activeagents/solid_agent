@@ -106,6 +106,14 @@ GEM
     rake (13.3.1)
     ruby2_keywords (0.0.5)
     securerandom (0.4.1)
+    sqlite3 (2.9.6-aarch64-linux-gnu)
+    sqlite3 (2.9.6-aarch64-linux-musl)
+    sqlite3 (2.9.6-arm-linux-gnu)
+    sqlite3 (2.9.6-arm-linux-musl)
+    sqlite3 (2.9.6-arm64-darwin)
+    sqlite3 (2.9.6-x86_64-darwin)
+    sqlite3 (2.9.6-x86_64-linux-gnu)
+    sqlite3 (2.9.6-x86_64-linux-musl)
     timeout (0.6.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
@@ -127,6 +135,7 @@ DEPENDENCIES
   mocha (~> 2.0)
   rake (~> 13.0)
   solid_agent!
+  sqlite3 (>= 2.0)
 
 BUNDLED WITH
    2.7.2
