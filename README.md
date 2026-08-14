@@ -6,6 +6,10 @@
 
 SolidAgent extends the [ActiveAgent](https://github.com/activeagents/activeagent) framework with database-backed persistence for everything an agent does in a Rails application: conversations, generations, tool/MCP interactions, reasoning, and long-term memory.
 
+**[Documentation](https://docs.activeagents.ai/solid_agent)** ·
+**[Examples](examples)** ·
+**[`.agent.md` spec](docs/agent-md-spec.md)**
+
 ## Features
 
 Agent-side concerns:
@@ -61,9 +65,11 @@ class WritingAssistantAgent < ApplicationAgent
   has_context :conversation, contextual: :user
 
   def improve
-    load_conversation(contextable: current_user)  # contextable is the polymorphic association
-    add_conversation_user_message(params[:message])
-    prompt messages: conversation_messages
+    load_conversation(contextable: params[:user])  # contextable is the polymorphic association
+
+    prompt messages: conversation_messages + [
+      { role: "user", content: params[:message] }
+    ]
   end
 end
 ```
@@ -74,6 +80,11 @@ This generates helper methods like:
 - `add_conversation_user_message(content)` - Add a user message
 - `add_conversation_assistant_message(content)` - Add an AI response
 - `conversation_result` - Get the last assistant message
+
+With `auto_save` on (the default), the last prompt message is persisted as
+the user turn and the response as the assistant turn, both after the
+provider call — so reach for `add_conversation_user_message` only with
+`auto_save: false`, or the turn is stored twice.
 
 > **Note:** contexts are persisted under `self.class.name` — agents built
 > with anonymous `Class.new(...)` must define a class name or context
@@ -219,6 +230,24 @@ $ rails generate solid_agent:reasons AgentGeneration
 # Scaffold an agent manifest (.agent.md)
 $ rails generate solid_agent:manifest research
 ```
+
+## Examples
+
+The [`examples/`](examples) directory has a worked example per concern —
+agent classes, views, controllers and console walkthroughs laid out the way
+they'd sit in a Rails app:
+
+| Example | Concerns |
+|---------|----------|
+| [persistent_conversation](examples/persistent_conversation) | `HasContext` |
+| [memory_handoff](examples/memory_handoff) | `HasMemory` |
+| [tool_streaming](examples/tool_streaming) | `HasTools`, `StreamsToolUpdates`, `ToolCache` |
+| [reasoning](examples/reasoning) | `HasReasons`, `Reasonable` |
+| [run_tracking](examples/run_tracking) | `AgentRun`, `RunFingerprint`, `ModelPricing` |
+| [manifests](examples/manifests) | `AgentManifest` |
+
+The narrated versions live at
+[docs.activeagents.ai/solid_agent](https://docs.activeagents.ai/solid_agent).
 
 ## Example Apps
 
