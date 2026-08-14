@@ -10,4 +10,8 @@ gem "rake", "~> 13.0"
 group :test do
   gem "minitest", "~> 5.0"
   gem "mocha", "~> 2.0"
+
+  # Record concerns are ActiveRecord code; test/records/ exercises them against
+  # a real in-memory database rather than the mocks in test/test_helper.rb.
+  gem "sqlite3", ">= 2.0"
 end
