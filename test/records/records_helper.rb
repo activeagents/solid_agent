@@ -137,6 +137,44 @@ class User < ApplicationRecord
   has_many :agents, dependent: :destroy
 end
 
+# The default-named host models.
+#
+# +Agent+, +AgentVersion+ and +AgentRun+ are the constants SolidAgent falls
+# back to when a host configures nothing, so more than one test file needs
+# them by those exact names — and Ruby would not complain about it. Two files
+# each opening `class Agent < ApplicationRecord` merge into a single class
+# whose associations depend on which file `Dir[]` happened to load first, and
+# whose behavior changes when either file is edited. One definition here is
+# what makes that impossible.
+#
+# Models a single suite needs alone — PlatformAgent, TemplateRecord,
+# OwnedAgent, the two legacy run schemas — still belong in that suite's file.
+# Only the shared defaults live here.
+#
+# Agent is deliberately a plain model: Records::Agent is exercised through
+# agent_test.rb's differently-named PlatformAgent, and the version and run
+# suites want a host agent that carries no gem behavior of its own.
+class Agent < ApplicationRecord
+  has_many :agent_versions, dependent: :destroy
+  has_many :agent_runs, dependent: :destroy
+end
+
+class AgentVersion < ApplicationRecord
+  include SolidAgent::Records::AgentVersion
+end
+
+class AgentRun < ApplicationRecord
+  include SolidAgent::Records::AgentRun
+end
+
+# The same agent under a second name, so each suite can prove its association
+# is built from SolidAgent.agent_class rather than a hardcoded "Agent". The
+# version and run halves of that pair stay with their own suites, since each
+# has to be defined while agent_class points here.
+class Assistant < ApplicationRecord
+  self.table_name = "agents"
+end
+
 # Base class for record-concern tests: wraps each test in a transaction so
 # fixtures never leak between them.
 class RecordsTestCase < ActiveSupport::TestCase

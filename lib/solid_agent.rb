@@ -1,7 +1,26 @@
 # frozen_string_literal: true
 
+# The gem is written for a Rails host and used to assume one had already loaded
+# ActiveSupport and ActiveModel for it — `require "solid_agent"` on its own
+# raised NameError on ActiveSupport::Concern. Requiring the pieces we actually
+# use makes the gem loadable from a plain Ruby process (a rake task, an IRB
+# session, a non-Rails consumer of AgentManifest) and costs a Rails host
+# nothing, since these are already loaded there.
+#
+# The core extensions are named one by one rather than pulled in with
+# `active_support/all`: `safe_constantize` and `presence` are what the records
+# seam calls, and a gem should not decide for its host that every monkey patch
+# ActiveSupport ships is loaded.
+require "active_support"
+require "active_support/concern"
+require "active_support/notifications"
+require "active_support/core_ext/object/blank"
+require "active_support/core_ext/string/inflections"
+require "active_model"
+
 require_relative "solid_agent/version"
 require_relative "solid_agent/model_naming"
+require_relative "solid_agent/records"
 require_relative "solid_agent/tool_cache"
 require_relative "solid_agent/model_pricing"
 require_relative "solid_agent/run_fingerprint"

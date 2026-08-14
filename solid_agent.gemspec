@@ -34,4 +34,8 @@ Gem::Specification.new do |spec|
   spec.add_dependency "activeagent", ">= 1.0.0"
   spec.add_dependency "activesupport", ">= 7.0"
   spec.add_dependency "activerecord", ">= 7.0"
+  # AgentManifest is an ActiveModel, and lib/solid_agent.rb now requires it by
+  # name so the gem loads outside Rails. It arrived transitively through
+  # activerecord before; a require deserves a declaration.
+  spec.add_dependency "activemodel", ">= 7.0"
 end

@@ -5,60 +5,17 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "minitest/autorun"
 require "mocha/minitest"
 
-# Add present? and blank? methods to core classes
-class Object
-  def present?
-    !blank?
-  end
-
-  def blank?
-    respond_to?(:empty?) ? empty? : !self
-  end
-end
-
-class NilClass
-  def blank?
-    true
-  end
-
-  def present?
-    false
-  end
-end
-
-class String
-  def blank?
-    empty? || /\A[[:space:]]*\z/.match?(self)
-  end
-
-  def presence
-    blank? ? nil : self
-  end
-end
-
-class Array
-  def blank?
-    empty?
-  end
-
-  def presence
-    empty? ? nil : self
-  end
-end
-
-class Hash
-  def blank?
-    empty?
-  end
-
-  def present?
-    !blank?
-  end
-
-  def presence
-    empty? ? nil : self
-  end
-end
+# This harness stands in for Rails so the unit suite runs without it. What it
+# no longer stands in for is ActiveSupport: lib/solid_agent.rb requires the
+# core extensions the gem calls, so `blank?`, `presence`, `extract_options!`,
+# the String inflections and ActiveSupport::Concern all arrive real. The
+# hand-rolled versions that used to live here were not merely redundant — the
+# inflections were defined *after* `require "solid_agent"` and so overwrote
+# ActiveSupport's, leaving the suite to exercise a toy `camelize` while
+# production ran the real one.
+#
+# Mocks below are for what the gem does not require: Rails, ActionCable,
+# ActionView, ActiveRecord::Base, ActiveModel and class_attribute.
 
 # Mock ActionView for template errors
 module ActionView
@@ -162,44 +119,6 @@ end
 
 require "ostruct"
 
-# Mock ActiveSupport::Concern before loading solid_agent
-module ActiveSupport
-  module Concern
-    def self.extended(base)
-      base.instance_variable_set(:@_dependencies, [])
-    end
-
-    def included(base = nil, &block)
-      if base.nil?
-        if instance_variable_defined?(:@_included_block)
-          raise "Multiple 'included' blocks in #{self}"
-        end
-        @_included_block = block
-      else
-        super
-      end
-    end
-
-    def class_methods(&block)
-      @_class_methods_module ||= Module.new
-      @_class_methods_module.module_eval(&block)
-    end
-
-    def append_features(base)
-      if base.instance_variable_defined?(:@_dependencies)
-        base.instance_variable_get(:@_dependencies) << self
-        false
-      else
-        return false if base < self
-        @_dependencies&.each { |dep| base.include(dep) }
-        super
-        base.extend(@_class_methods_module) if instance_variable_defined?(:@_class_methods_module)
-        base.class_eval(&@_included_block) if instance_variable_defined?(:@_included_block)
-      end
-    end
-  end
-end
-
 # Mock class_attribute from ActiveSupport
 class Module
   def class_attribute(*attrs)
@@ -238,17 +157,6 @@ class Module
       if options.key?(:default)
         instance_variable_set(:"@#{attr}", default_value)
       end
-    end
-  end
-end
-
-# Add extract_options! to Array
-class Array
-  def extract_options!
-    if last.is_a?(Hash)
-      pop
-    else
-      {}
     end
   end
 end
@@ -497,58 +405,6 @@ module SolidAgentTestHelpers
       end
       result || block.call
     end
-  end
-end
-
-# String extensions
-class String
-  def underscore
-    gsub(/::/, "/")
-      .gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2')
-      .gsub(/([a-z\d])([A-Z])/, '\1_\2')
-      .tr("-", "_")
-      .downcase
-  end
-
-  def camelize
-    split("_").map(&:capitalize).join
-  end
-
-  def singularize
-    # Simple singularize for testing
-    # Words ending in 'sis' should not be singularized (analysis, basis, etc.)
-    if end_with?("ies")
-      self[0..-4] + "y"
-    elsif end_with?("ses") && !end_with?("sis")
-      self[0..-3]
-    elsif end_with?("xes")
-      self[0..-3]
-    elsif end_with?("sis") || end_with?("ss")
-      self
-    elsif end_with?("s")
-      self[0..-2]
-    else
-      self
-    end
-  end
-
-  def humanize
-    gsub(/_/, " ").capitalize
-  end
-
-  def constantize
-    names = split("::")
-    names.shift if names.empty? || names.first.empty?
-
-    constant = Object
-    names.each do |name|
-      constant = constant.const_get(name)
-    end
-    constant
-  end
-
-  def delete_suffix(suffix)
-    end_with?(suffix) ? self[0...-suffix.length] : self.dup
   end
 end
 
