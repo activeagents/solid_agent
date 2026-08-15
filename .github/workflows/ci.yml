@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_JOBS: 4
+      BUNDLE_RETRY: 3
+      CI: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # The gemspec floor is Ruby 3.0, but the Rails 8 that Bundler resolves
+        # here needs 3.2. A host on an older Ruby resolves an older Rails.
+        ruby: [ "3.2", "3.3", "3.4" ]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      # Two suites, two processes, and the default task runs both in the order
+      # the Rakefile documents: the unit harness stands in for Rails, the
+      # record harness boots a real ActiveRecord, and loading either into the
+      # other's process makes both dishonest.
+      - name: Run the unit suite
+        run: bundle exec rake test
+      - name: Run the record concerns against a real ActiveRecord
+        run: bundle exec rake test:records

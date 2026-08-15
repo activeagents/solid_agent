@@ -1,0 +1,72 @@
+name: Release
+
+# Builds the gem, attaches it to a GitHub release, and publishes to RubyGems
+# via trusted publishing (OIDC — no stored API key).
+#
+# Requires a trusted publisher configured on rubygems.org for solid_agent,
+# pointing at this repository and this workflow file (release.yml). Until that
+# exists, the publish step fails at credential exchange with "No trusted
+# publisher configured for this workflow" — the build still runs and still
+# attaches the gem to the release.
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      # The gemspec builds its file list from `git ls-files`, so a file that
+      # was never committed is missing from the archive without anything
+      # failing. A gem that installs and resolves then dies on require is the
+      # failure this guards against, and it is invisible from the outside.
+      - name: Build the gem and assert it carries its entry point
+        run: |
+          mkdir -p pkg
+          gem build solid_agent.gemspec --output pkg/solid_agent.gem
+          tar -xOf pkg/solid_agent.gem data.tar.gz | tar -tzf - > pkg/contents.txt
+          for path in lib/solid_agent.rb lib/solid_agent/version.rb; do
+            grep -qx "$path" pkg/contents.txt || {
+              echo "::error::the built gem is missing $path"
+              exit 1
+            }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gem
+          path: pkg/solid_agent.gem
+      - name: Attach the gem to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pkg/solid_agent.gem
+          generate_release_notes: true
+
+  publish:
+    # Tag pushes release; workflow_dispatch covers environments where tags
+    # can't be pushed directly. RubyGems refuses to overwrite an existing
+    # version, so an accidental re-run cannot double-publish.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC exchange with rubygems.org
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      # The action publishes no v1 tag; @main is the ref its docs pin.
+      - uses: rubygems/configure-rubygems-credentials@main
+      - run: gem build solid_agent.gemspec --output pkg/solid_agent.gem
+      - run: gem push pkg/solid_agent.gem

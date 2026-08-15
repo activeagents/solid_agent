@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     solid_agent (0.2.0)
-      activeagent (>= 1.1.0)
+      activeagent (>= 1.0.0)
       activemodel (>= 7.0)
       activerecord (>= 7.0)
       activesupport (>= 7.0)
