@@ -4,6 +4,14 @@
 
 # SolidAgent
 
+[![Gem Version](https://img.shields.io/gem/v/solid_agent?logo=rubygems&color=CC342D)](https://rubygems.org/gems/solid_agent)
+[![Downloads](https://img.shields.io/gem/dt/solid_agent?label=downloads)](https://rubygems.org/gems/solid_agent)
+[![CI](https://github.com/activeagents/solid_agent/actions/workflows/ci.yml/badge.svg)](https://github.com/activeagents/solid_agent/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-docs.activeagents.ai%2Fsolid__agent-2563eb)](https://docs.activeagents.ai/solid_agent)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.0-CC342D)](https://www.ruby-lang.org)
+[![ActiveAgent](https://img.shields.io/badge/activeagent-%3E%3D%201.0-D30001)](https://github.com/activeagents/activeagent)
+[![License](https://img.shields.io/github/license/activeagents/solid_agent)](LICENSE)
+
 SolidAgent extends the [ActiveAgent](https://github.com/activeagents/activeagent) framework with database-backed persistence for everything an agent does in a Rails application: conversations, generations, tool/MCP interactions, reasoning, and long-term memory.
 
 **[Documentation](https://docs.activeagents.ai/solid_agent)** ·
@@ -62,7 +70,7 @@ Add database-backed context management to your agents:
 class WritingAssistantAgent < ApplicationAgent
   include SolidAgent::HasContext
 
-  has_context :conversation, contextual: :user
+  has_context :conversation, class_name: "AgentContext", contextual: :user
 
   def improve
     load_conversation(contextable: params[:user])  # contextable is the polymorphic association
@@ -85,6 +93,14 @@ With `auto_save` on (the default), the last prompt message is persisted as
 the user turn and the response as the assistant turn, both after the
 provider call — so reach for `add_conversation_user_message` only with
 `auto_save: false`, or the turn is stored twice.
+
+> **Naming a context also names its models.** `has_context :conversation`
+> infers `Conversation`, `ConversationMessage` and `ConversationGeneration`,
+> not the `AgentContext` family the installer wrote — hence `class_name:`
+> above, which infers `AgentMessage` and `AgentGeneration` alongside it.
+> Unnamed `has_context` resolves to those models directly; for genuinely
+> separate tables per context, run
+> `rails generate solid_agent:context conversation`.
 
 > **Note:** contexts are persisted under `self.class.name` — agents built
 > with anonymous `Class.new(...)` must define a class name or context
@@ -215,7 +231,10 @@ $ rails generate solid_agent:install
 # Generate a new agent
 $ rails generate solid_agent:agent MyAgent
 
-# Generate with context support
+# Generate with context support. --context_name emits
+# `has_context :session`, which resolves Session/SessionMessage/
+# SessionGeneration — pair it with the context generator below, or drop the
+# option to use the installed AgentContext models.
 $ rails generate solid_agent:agent MyAgent --context --context_name session
 
 # Generate a tool template
@@ -260,7 +279,42 @@ See SolidAgent in action:
 
 After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+```bash
+bundle exec rake test
+```
+
+### Testing against ActiveAgent
+
+This suite runs against mocks — deliberately, so it stays fast and
+dependency-free — which means it can pass while these concerns no longer
+compose with the framework they extend. ActiveAgent carries a dummy Rails
+app and a cross-repo suite for exactly that. Point it at your working tree:
+
+```bash
+git clone https://github.com/activeagents/activeagent ../activeagent
+cd ../activeagent
+
+SOLID_AGENT_PATH=../solid_agent \
+  BUNDLE_GEMFILE=gemfiles/solid_agent_main.gemfile \
+  SOLID_AGENT_STRICT=1 \
+  bin/test test/integration/solid_agent/*_test.rb \
+           actionagent/test/agent_execution_service_test.rb
+```
+
+`SOLID_AGENT_STRICT=1` fails on anything the suite would otherwise skip for
+a missing API — here the resolved gem *is* your checkout, so a skip means
+something was removed. CI runs this on every pull request against
+ActiveAgent's main branch and its latest release, and again nightly. See
+[Releasing & Cross-Repo Testing](https://docs.activeagents.ai/contributing/releasing).
+
+### Releasing
+
+Releases publish from a `v*` tag through
+[.github/workflows/release.yml](.github/workflows/release.yml) using RubyGems
+trusted publishing, gated on CI including the cross-repo suite. Bump
+`SolidAgent::VERSION`, tag, push. This gem depends on `activeagent` and
+`actionagent` depends on this gem, so anything requiring a new framework API
+waits for that release to land on RubyGems first.
 
 ## Contributing
 

@@ -17,7 +17,13 @@ class SupportAgent < ApplicationAgent
 
   generate_with :openai, model: "gpt-4o-mini"
 
-  has_context :conversation, contextual: :user
+  # Naming a context also names the models it resolves: :conversation alone
+  # would look for Conversation / ConversationMessage / ConversationGeneration
+  # and raise NameError on the first request. class_name points it back at
+  # what `solid_agent:install` wrote (AgentMessage and AgentGeneration are
+  # inferred from it). Want separate tables instead? Run
+  # `rails generate solid_agent:context conversation` and drop class_name.
+  has_context :conversation, class_name: "AgentContext", contextual: :user
 
   # Multi-turn: load the stored conversation, append this turn's question,
   # and send the whole history as the prompt.

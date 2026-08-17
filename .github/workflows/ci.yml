@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  # release.yml runs this whole workflow as its gate.
+  workflow_call:
+  # Nightly, so drift between this gem and the framework it extends surfaces
+  # without anyone having to push.
+  schedule:
+    - cron: "0 7 * * *"
+
+jobs:
+  test:
+    name: Ruby ${{ matrix.ruby }}
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_JOBS: 4
+      BUNDLE_RETRY: 3
+      CI: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # The gemspec floor is 3.0; the ends of the supported range plus
+        # the version most contributors are on.
+        ruby: [ "3.1", "3.3", "3.4" ]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Run tests
+        run: bundle exec rake test
+
+  # This gem's own suite runs against mocks — deliberately, so it stays fast
+  # and dependency-free — which means it can pass while the concerns no
+  # longer compose with the framework they extend. activeagent carries a
+  # dummy Rails app and a cross-repo suite for exactly that; run it here
+  # against this working tree.
+  #
+  # SOLID_AGENT_STRICT=1: a test that would skip because the resolved gem
+  # lacks an API fails instead. Here the resolved gem *is* this checkout, so
+  # a skip would mean something was removed.
+  integration:
+    name: activeagent (${{ matrix.activeagent_ref }})
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_JOBS: 4
+      BUNDLE_RETRY: 3
+      CI: true
+      RAILS_ENV: test
+      SOLID_AGENT_STRICT: "1"
+      ANTHROPIC_API_KEY: ANTHROPIC_API_KEY
+      OPEN_AI_API_KEY: OPEN_AI_API_KEY
+      OPEN_ROUTER_API_KEY: OPEN_ROUTER_API_KEY
+    strategy:
+      fail-fast: false
+      matrix:
+        # main catches breakage before the framework releases; the latest
+        # tag catches breakage against what users have installed.
+        activeagent_ref: [ main, latest-release ]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: solid_agent
+
+      - name: Check out activeagent
+        uses: actions/checkout@v6
+        with:
+          repository: activeagents/activeagent
+          path: activeagent
+          fetch-depth: 0
+
+      - name: Select the activeagent revision
+        working-directory: activeagent
+        run: |
+          if [ "${{ matrix.activeagent_ref }}" = "latest-release" ]; then
+            tag=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+            if [ -z "$tag" ]; then
+              echo "No release tag found; staying on main." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Testing against activeagent $tag" >> "$GITHUB_STEP_SUMMARY"
+              git checkout --detach "$tag"
+            fi
+          fi
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential git libyaml-dev pkg-config
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: activeagent
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
+          SOLID_AGENT_PATH: ${{ github.workspace }}/solid_agent
+
+      - name: Setup database
+        working-directory: activeagent/test/dummy
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
+          SOLID_AGENT_PATH: ${{ github.workspace }}/solid_agent
+        run: |
+          bundle exec ruby bin/rails db:create
+          bundle exec ruby bin/rails db:migrate
+
+      # Includes the dashboard engine's execution test: it builds an agent
+      # class around SolidAgent::HasContext, and is the path a keyword rename
+      # in this gem breaks first.
+      - name: Run the cross-repo suite
+        working-directory: activeagent
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
+          SOLID_AGENT_PATH: ${{ github.workspace }}/solid_agent
+        run: |
+          bin/test test/integration/solid_agent/*_test.rb \
+                   actionagent/test/agent_execution_service_test.rb
+
+      - name: Report the resolved versions
+        if: always()
+        working-directory: activeagent
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
+          SOLID_AGENT_PATH: ${{ github.workspace }}/solid_agent
+        run: |
+          {
+            echo '```'
+            bundle list | grep -E "activeagent|actionagent|solid_agent" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
