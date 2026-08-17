@@ -90,12 +90,29 @@ jobs:
             fi
           fi
 
+      # The harness lives in activeagent, so revisions predating it have
+      # nothing to run — every release tag until one ships with it, and
+      # main until activeagents/activeagent#364 merges. That is a skip with
+      # a reason, not a failure: this job exists to report on the pairing,
+      # and "the other side is too old" is a legitimate report.
+      - name: Check the cross-repo harness is present
+        id: harness
+        run: |
+          if [ -f activeagent/gemfiles/solid_agent_main.gemfile ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "activeagent (${{ matrix.activeagent_ref }}) has no gemfiles/solid_agent_main.gemfile — it predates the cross-repo suite, so there is nothing to run against it." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Install system deps
+        if: steps.harness.outputs.present == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y build-essential git libyaml-dev pkg-config
 
       - uses: ruby/setup-ruby@v1
+        if: steps.harness.outputs.present == 'true'
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -105,6 +122,7 @@ jobs:
           SOLID_AGENT_PATH: ${{ github.workspace }}/solid_agent
 
       - name: Setup database
+        if: steps.harness.outputs.present == 'true'
         working-directory: activeagent/test/dummy
         env:
           BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
@@ -117,6 +135,7 @@ jobs:
       # class around SolidAgent::HasContext, and is the path a keyword rename
       # in this gem breaks first.
       - name: Run the cross-repo suite
+        if: steps.harness.outputs.present == 'true'
         working-directory: activeagent
         env:
           BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
@@ -126,7 +145,7 @@ jobs:
                    actionagent/test/agent_execution_service_test.rb
 
       - name: Report the resolved versions
-        if: always()
+        if: always() && steps.harness.outputs.present == 'true'
         working-directory: activeagent
         env:
           BUNDLE_GEMFILE: ${{ github.workspace }}/activeagent/gemfiles/solid_agent_main.gemfile
