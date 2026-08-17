@@ -1,0 +1,98 @@
+name: Release
+
+# Builds the gem, attaches it to a GitHub release, and publishes to RubyGems
+# via trusted publishing (OIDC — no stored API key).
+#
+# Requires a trusted publisher configured on rubygems.org for solid_agent,
+# pointing at this repository and this workflow file (release.yml). Until
+# that exists, the push step fails with an authorization error.
+#
+# Mirrors activeagents/activeagent's release workflow, including the gate:
+# this gem depends on activeagent and the dashboard engine depends on this
+# gem, so a release that the cross-repo suite has not seen is a release that
+# can break either neighbour.
+
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+jobs:
+  # The full CI suite, including the cross-repo job that runs this working
+  # tree against activeagent main and against its latest release.
+  verify:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      # A gem that installs and resolves but dies on require is the failure
+      # this guards against, and it is invisible without looking inside the
+      # archive.
+      - name: Build and inspect the gem
+        run: |
+          gem build solid_agent.gemspec
+          mkdir -p pkg && mv solid_agent-*.gem pkg/
+          contents=$(tar -xOf pkg/solid_agent-*.gem data.tar.gz | tar -tzf -)
+          for path in lib/solid_agent.rb lib/solid_agent/has_context.rb; do
+            echo "$contents" | grep -qx "$path" || { echo "gem is missing $path"; exit 1; }
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gem
+          path: pkg/*.gem
+
+      - name: Attach the gem to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pkg/*.gem
+          generate_release_notes: true
+
+  publish:
+    # Tag pushes release; workflow_dispatch covers environments where tags
+    # can't be pushed directly. RubyGems refuses to overwrite an existing
+    # version, so an accidental re-run cannot double-publish.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC exchange with rubygems.org
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      # The action publishes no v1 tag; @main is the ref its docs pin.
+      - uses: rubygems/configure-rubygems-credentials@main
+
+      - name: Publish to RubyGems
+        run: |
+          gem build solid_agent.gemspec
+          gem_path=$(ls solid_agent-*.gem)
+          version=$(basename "$gem_path" .gem | sed -E 's/^solid_agent-//')
+
+          # `gem list --all` prints one line: `name (1.2.0, 1.1.0, ...)`, so
+          # the version is matched between its delimiters — anchoring on
+          # "($version" alone would only ever see the newest release.
+          if gem list --remote --exact --all solid_agent | tr -d ' ' |
+               grep -qE "[(,]${version//./\\.}[,)]"; then
+            echo "solid_agent $version is already on RubyGems; nothing to do."
+            exit 0
+          fi
+
+          gem push "$gem_path"

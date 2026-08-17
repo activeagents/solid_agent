@@ -417,6 +417,41 @@ class SolidAgentRecordsAgentRunTest < AgentRunTestCase
     assert_equal [ "first", "from another thread", "third" ], run.reload.events_log.map { |e| e["label"] }
   end
 
+  test "append_event serializes the read and the write" do
+    run = create_run
+
+    # Re-reading is not enough on its own: two writers that read the same
+    # array before either writes lose one entry. The append runs inside a
+    # row lock, so the second writer's read happens after the first commits.
+    other = AgentRun.find(run.id)
+    other.events_log # prime the stale in-memory copy
+
+    run.append_event(kind: "llm", label: "first")
+    other.append_event(kind: "tool", label: "second")
+
+    assert_equal [ "first", "second" ], run.reload.events_log.map { |e| e["label"] }
+  end
+
+  test "add_log does not drop a concurrently appended event" do
+    run = create_run
+    stale = AgentRun.find(run.id)
+    stale.events_log
+
+    run.append_event(kind: "llm", label: "event")
+    stale.add_log("log line")
+
+    assert_equal [ "event", "log line" ],
+      run.reload.events_log.map { |entry| entry["label"] || entry["message"] }
+  end
+
+  test "append_event on an unsaved run keeps the entry in memory" do
+    run = AgentRun.new(agent: @agent)
+
+    run.append_event(kind: "llm", label: "before save")
+
+    assert_equal [ "before save" ], run.events_log.map { |e| e["label"] }
+  end
+
   test "add_log appends a log entry through a normal save" do
     run = create_run
 

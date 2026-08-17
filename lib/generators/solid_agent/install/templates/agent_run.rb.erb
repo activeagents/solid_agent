@@ -67,9 +67,11 @@ class AgentRun < ApplicationRecord
   # Appends a progress event mid-run so pollers can stream what the agent
   # is doing (pending llm/tool/agent calls). Events pair up by eid: a
   # "started" event is pending until a "done"/"error" with the same eid
-  # lands. update_column: no validations/callbacks, safe from the run's
-  # own execution thread; reads current DB state so concurrent appends
-  # interleave safely.
+  # lands. update_column: no validations/callbacks, so this is safe to call
+  # from the run's own execution thread.
+  #
+  # Read-modify-write on a JSON column drops entries when two writers race,
+  # so the re-read and the write are serialized by a row lock.
   def append_event(kind:, label:, eid: nil, status: "done", detail: nil, duration_ms: nil)
     event = {
       "at" => Time.current.iso8601(3),
@@ -80,8 +82,12 @@ class AgentRun < ApplicationRecord
     }.compact
     event["detail"] = detail.to_s.byteslice(0, 1200).to_s.scrub if detail
     event["duration_ms"] = duration_ms if duration_ms
-    current = self.class.where(id: id).pick(:events) || []
-    update_column(:events, current + [ event ])
+
+    with_lock do
+      current = self.class.where(id: id).pick(:events) || []
+      update_column(:events, current + [ event ])
+    end
+
     event
   end
 
