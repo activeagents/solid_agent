@@ -56,6 +56,12 @@ jobs:
       CI: true
       RAILS_ENV: test
       SOLID_AGENT_STRICT: "1"
+      # Placeholders, matching activeagent's own CI: its config/active_agent.yml
+      # reads these at boot and provider clients raise when constructed without
+      # one. Nothing here reaches a provider — every generation in the
+      # cross-repo suite goes through the mock provider — so the values are
+      # deliberately not secrets, and a real call would fail loudly rather than
+      # bill anyone.
       ANTHROPIC_API_KEY: ANTHROPIC_API_KEY
       OPEN_AI_API_KEY: OPEN_AI_API_KEY
       OPEN_ROUTER_API_KEY: OPEN_ROUTER_API_KEY

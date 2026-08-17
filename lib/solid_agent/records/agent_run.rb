@@ -280,8 +280,8 @@ module SolidAgent
       #
       # Writes with +update_column+ — no validations, no callbacks, no
       # +updated_at+ churn — so it is safe to call from the run's own execution
-      # thread mid-transaction, and it re-reads the column from the database
-      # first so interleaved appends do not clobber each other.
+      # thread mid-transaction. The re-read and the write happen under a row
+      # lock, so an append racing another writer cannot drop either entry.
       #
       # @param kind [String, Symbol] "llm", "tool", "agent", …
       # @param label [String, Symbol] human-readable name of the thing happening
@@ -301,7 +301,7 @@ module SolidAgent
         event["detail"] = truncated_detail(detail) if detail
         event["duration_ms"] = duration_ms if duration_ms
 
-        update_column(events_attribute, current_events + [ event ])
+        append_to_events_log(event)
         event
       end
 
@@ -326,8 +326,7 @@ module SolidAgent
           "message" => message.to_s
         }
 
-        update!(events_attribute => current_events + [ entry ])
-        entry
+        append_to_events_log(entry, save: true)
       end
 
       # === Cohort fingerprinting ===
@@ -477,6 +476,34 @@ module SolidAgent
         return events_log unless persisted?
 
         self.class.where(id: id).pick(events_attribute) || []
+      end
+
+      # Read-modify-write on a JSON column loses entries when two writers
+      # race — a tool loop appending progress while the run's own thread
+      # logs, say: both read the same array and the second write wins. The
+      # read and the write are serialized by a row lock so the append is
+      # always against the latest persisted value.
+      #
+      # An unsaved record has no row to lock; it keeps the in-memory
+      # behaviour current_events already falls back to.
+      #
+      # @param entry [Hash] event or log entry to append
+      # @param save [Boolean] true runs validations and callbacks (add_log),
+      #   false writes the column directly (append_event, called from the
+      #   run's own execution thread)
+      def append_to_events_log(entry, save: false)
+        unless persisted?
+          write_attribute(events_attribute, current_events + [ entry ])
+          return entry
+        end
+
+        with_lock do
+          appended = current_events + [ entry ]
+
+          save ? update!(events_attribute => appended) : update_column(events_attribute, appended)
+        end
+
+        entry
       end
 
       def truncated_detail(detail)

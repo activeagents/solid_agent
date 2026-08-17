@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Rails does not guarantee net/http is loaded, and fetch_url below needs it.
+require "net/http"
+
 # Tools three ways, plus live progress and result caching.
 #
 # - `has_tools :fetch_url` loads a schema from a JSON view template, so the

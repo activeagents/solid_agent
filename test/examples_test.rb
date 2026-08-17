@@ -53,7 +53,16 @@ class ExamplesTest < Minitest::Test
     refute_empty referenced
 
     referenced.each do |constant|
-      assert SolidAgent.const_defined?(constant),
+      # const_defined? takes a qualified name ("Reasonable::Reason"), but
+      # raises on a malformed one — a trailing "::" swept up by the regex
+      # should read as a test failure, not an error.
+      defined_here = begin
+        SolidAgent.const_defined?(constant)
+      rescue NameError
+        false
+      end
+
+      assert defined_here,
         "examples reference SolidAgent::#{constant}, which does not exist"
     end
   end
