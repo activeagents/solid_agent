@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`CHANGELOG.md`**, which the gemspec already advertised.
 
+- **`HasContext#resuming_generation?`** answers whether a generation resumes
+  one that paused for user input: true when the agent defines a public
+  `resuming?` that returns true, or after `self.resuming_generation = true`.
+  The writer is for a host that replays a stored conversation itself. Both
+  are private, so neither becomes one of the agent's actions.
+
 ### Fixed
 
 - **`HasContext` no longer persists a generation paused for user input, and

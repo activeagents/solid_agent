@@ -62,9 +62,6 @@ module SolidAgent
 
       # Default context accessor for backward compatibility
       attr_accessor :generation_response
-
-      # See #resuming_generation?.
-      attr_writer :resuming_generation
     end
 
     class_methods do
@@ -436,22 +433,6 @@ module SolidAgent
       send("#{primary_context_name}_summary")
     end
 
-    # Returns whether this generation resumes one that paused for user input:
-    # true when the host set `self.resuming_generation = true`, or when the
-    # agent defines a public `resuming?` (the framework's resume flag) that
-    # returns true. A resuming generation does not persist its prompt.
-    #
-    # @example A host that replays a stored checkpoint itself
-    #   before_generation { self.resuming_generation = params[:checkpoint].present? }
-    #
-    # @return [Boolean]
-    def resuming_generation?
-      return true if @resuming_generation
-      return false unless respond_to?(:resuming?)
-
-      resuming? ? true : false
-    end
-
     # ============================================
     # Provenance & Checksums
     # ============================================
@@ -560,6 +541,28 @@ module SolidAgent
       return nil unless self.class.respond_to?(reader)
 
       self.class.public_send(reader)&.except(:access_token, :api_key)
+    end
+
+    # Marks this generation as resuming one that paused for user input, for a
+    # host that replays a stored conversation itself. Private, like
+    # #resuming_generation?, because every public method on an agent is one
+    # of its actions.
+    #
+    # @example
+    #   before_generation { self.resuming_generation = params[:checkpoint].present? }
+    attr_writer :resuming_generation
+
+    # Returns whether this generation resumes one that paused for user input:
+    # true when `self.resuming_generation = true` was set, or when the agent
+    # defines a public `resuming?` (the framework's resume flag) that returns
+    # true. A resuming generation does not persist its prompt.
+    #
+    # @return [Boolean]
+    def resuming_generation?
+      return true if @resuming_generation
+      return false unless respond_to?(:resuming?)
+
+      resuming? ? true : false
     end
 
     # After prompt callback - persists the rendered prompt message to context.

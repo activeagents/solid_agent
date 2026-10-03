@@ -148,22 +148,31 @@ class HasContextPausedGenerationTest < Minitest::Test
   # === resuming_generation? ===
 
   def test_resuming_generation_is_false_by_default
-    refute build_agent(FakeContext.new).resuming_generation?
+    refute build_agent(FakeContext.new).send(:resuming_generation?)
   end
 
-  def test_resuming_generation_is_true_when_the_host_sets_it
+  def test_resuming_generation_is_true_when_the_agent_sets_it
     agent = build_agent(FakeContext.new)
-    agent.resuming_generation = true
+    agent.instance_exec { self.resuming_generation = true }
 
-    assert_equal true, agent.resuming_generation?
+    assert_equal true, agent.send(:resuming_generation?)
   end
 
   def test_resuming_generation_follows_the_framework_flag
     resuming_class = Class.new(@agent_class) { def resuming? = :yes }
     idle_class = Class.new(@agent_class) { def resuming? = false }
 
-    assert_equal true, build_agent(FakeContext.new, agent_class: resuming_class).resuming_generation?
-    assert_equal false, build_agent(FakeContext.new, agent_class: idle_class).resuming_generation?
+    assert_equal true, build_agent(FakeContext.new, agent_class: resuming_class).send(:resuming_generation?)
+    assert_equal false, build_agent(FakeContext.new, agent_class: idle_class).send(:resuming_generation?)
+  end
+
+  # A public method on an agent is one of its actions, and the action list
+  # feeds the framework's release digest.
+  def test_resuming_generation_methods_are_not_public
+    public_methods = @agent_class.public_instance_methods
+
+    refute_includes public_methods, :resuming_generation?
+    refute_includes public_methods, :resuming_generation=
   end
 
   # === Prompt persistence ===
@@ -181,7 +190,7 @@ class HasContextPausedGenerationTest < Minitest::Test
       prompt_message("user", "Book a table for two"),
       { role: "tool", tool_call_id: "call_1", content: "{\"slots\":[\"19:00\"]}" }
     ])
-    agent.resuming_generation = true
+    agent.send(:resuming_generation=, true)
 
     agent.send(:persist_prompt_to_context)
 
@@ -279,7 +288,7 @@ class HasContextPausedGenerationTest < Minitest::Test
       prompt_message("assistant", [ { type: "tool_use", id: "call_1" }, { type: "tool_use", id: "call_2" } ]),
       { role: "tool", tool_call_id: "call_1", content: slots }
     ])
-    resuming_agent.resuming_generation = true
+    resuming_agent.send(:resuming_generation=, true)
     finished = FakeResponse.new(history + [
       user("Book a table for two"),
       assistant("Checking availability."),
