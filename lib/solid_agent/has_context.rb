@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest"
+require "set"
 
 # HasContext provides database-backed prompt context management for agents.
 #
@@ -61,6 +62,9 @@ module SolidAgent
 
       # Default context accessor for backward compatibility
       attr_accessor :generation_response
+
+      # See #resuming_generation?.
+      attr_writer :resuming_generation
     end
 
     class_methods do
@@ -432,6 +436,22 @@ module SolidAgent
       send("#{primary_context_name}_summary")
     end
 
+    # Returns whether this generation resumes one that paused for user input:
+    # true when the host set `self.resuming_generation = true`, or when the
+    # agent defines a public `resuming?` (the framework's resume flag) that
+    # returns true. A resuming generation does not persist its prompt.
+    #
+    # @example A host that replays a stored checkpoint itself
+    #   before_generation { self.resuming_generation = params[:checkpoint].present? }
+    #
+    # @return [Boolean]
+    def resuming_generation?
+      return true if @resuming_generation
+      return false unless respond_to?(:resuming?)
+
+      resuming? ? true : false
+    end
+
     # ============================================
     # Provenance & Checksums
     # ============================================
@@ -542,9 +562,12 @@ module SolidAgent
       self.class.public_send(reader)&.except(:access_token, :api_key)
     end
 
-    # After prompt callback - persists the rendered prompt message to context
+    # After prompt callback - persists the rendered prompt message to context.
+    # Skipped for a resumed generation, whose last prompt message belongs to
+    # the restored conversation (an assistant tool-call turn or a tool result).
     def persist_prompt_to_context
       return unless context
+      return if resuming_generation?
 
       if prompt_options[:messages].present?
         rendered_message = prompt_options[:messages].last
@@ -560,9 +583,17 @@ module SolidAgent
       generation_response
     end
 
-    # Persists the generation response to context
+    # Persists the generation response to context. A response paused for user
+    # input persists nothing, because its last message is an unfinished turn.
+    # The resumed generation's response repeats the restored tool results, so
+    # they are persisted with the final answer.
     def persist_generation_to_context
       return unless context && generation_response
+
+      if generation_paused?
+        Rails.logger.info "[SolidAgent] Skipping persistence - generation is awaiting user input"
+        return
+      end
 
       persist_tool_messages_to_context
 
@@ -584,6 +615,12 @@ module SolidAgent
       end
     end
 
+    def generation_paused?
+      return false unless generation_response.respond_to?(:awaiting_input?)
+
+      generation_response.awaiting_input? ? true : false
+    end
+
     # Overridable enrichment hook for tool persistence. Executors that run
     # tools server-side (a platform's execution service, a job) can
     # override this to return their own invocation records — an array of
@@ -602,19 +639,25 @@ module SolidAgent
     #
     # Requires the context model to expose add_tool_message (the install
     # generator's AgentContext does); contexts without it are skipped.
-    # Messages are deduped by tool_call_id so re-persisting a shared
-    # message stack (multi-turn conversations) doesn't duplicate rows.
+    # Messages are deduped by tool_call_id. A response's stack repeats
+    # earlier turns (a multi-turn conversation's history, a resumed
+    # generation's restored conversation), so a call already on the context
+    # or earlier in the same stack is skipped.
     def persist_tool_messages_to_context
       return unless context.respond_to?(:add_tool_message)
       return unless generation_response.respond_to?(:messages)
 
       tool_index = -1
+      seen_tool_call_ids = Set.new
       Array(generation_response.messages).each do |message|
         next unless message.respond_to?(:role) && message.role.to_s == "tool"
 
         tool_index += 1
         tool_call_id = message.respond_to?(:tool_call_id) ? message.tool_call_id : nil
-        next if tool_call_id.present? && tool_message_persisted?(tool_call_id)
+        if tool_call_id.present?
+          next unless seen_tool_call_ids.add?(tool_call_id.to_s)
+          next if tool_message_persisted?(tool_call_id)
+        end
 
         invocation = tool_invocation_for(tool_call_id, tool_index)
         # Provider tool messages often carry no name (Ollama's don't); the
