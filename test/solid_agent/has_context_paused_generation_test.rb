@@ -210,6 +210,16 @@ class HasContextPausedGenerationTest < Minitest::Test
 
   # === Generation persistence ===
 
+  def test_a_paused_generation_persists_its_prompt_but_not_its_response
+    context = FakeContext.new
+    agent = build_agent(context, messages: [ prompt_message("user", "Book a table for two") ])
+
+    generate(agent, paused_response([ user("Book a table for two"), tool("call_1", "{\"slots\":[\"19:00\"]}") ]))
+
+    assert_equal [ { role: "user", content: "Book a table for two" } ], context.rows
+    assert_empty context.generations
+  end
+
   def test_a_paused_response_is_returned_but_not_persisted
     context = FakeContext.new
     response = paused_response([
@@ -263,7 +273,7 @@ class HasContextPausedGenerationTest < Minitest::Test
 
   # === Pause, then resume ===
 
-  def test_pause_then_resume_persists_each_turn_once
+  def test_pause_then_resume_persists_the_user_turn_tool_results_and_answer_once
     context = FakeContext.new(rows: [
       { role: "user", content: "What's on tonight?" },
       { role: "tool", tool_call_id: "call_0", tool_name: "lookup", content: "[]" },

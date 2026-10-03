@@ -48,16 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`HasContext` no longer persists a generation paused for user input, and
-  does not re-persist the conversation a resumed generation replays.** A
-  response answering `awaiting_input?` with true is returned untouched: no
-  generation record, no assistant row and no tool rows, because its last
-  message is an unfinished turn. A resumed generation skips the prompt
-  persistence, since its prompt messages are the restored conversation
-  rather than a new user turn; its response is persisted as usual. An agent
-  counts as resuming when it defines a public `resuming?` that returns true,
-  or when the host sets `self.resuming_generation = true`. Both checks are
-  duck-typed, so framework releases without a pause behave as before.
+- **`HasContext` skips persisting the response of a generation paused for
+  user input, and the prompt of the generation that resumes it.** A response
+  answering `awaiting_input?` with true is returned untouched: no generation
+  record, no assistant row and no tool rows, because its last message is an
+  unfinished turn. The paused generation's prompt, the user turn, is still
+  persisted. The resumed generation skips prompt persistence, because its
+  prompt replays that turn, and persists its response as usual. Both checks
+  are duck-typed, so framework releases without a pause behave as before.
 
 - Tool messages are now deduped by `tool_call_id` within one response's
   stack as well as against rows already on the context, so a stack that

@@ -566,8 +566,8 @@ module SolidAgent
     end
 
     # After prompt callback - persists the rendered prompt message to context.
-    # Skipped for a resumed generation, whose last prompt message belongs to
-    # the restored conversation (an assistant tool-call turn or a tool result).
+    # Skipped for a resumed generation, because the generation that paused
+    # already persisted the user turn and the resumed prompt replays it.
     def persist_prompt_to_context
       return unless context
       return if resuming_generation?
@@ -587,9 +587,9 @@ module SolidAgent
     end
 
     # Persists the generation response to context. A response paused for user
-    # input persists nothing, because its last message is an unfinished turn.
-    # The resumed generation's response repeats the restored tool results, so
-    # they are persisted with the final answer.
+    # input is skipped, because its last message is an unfinished turn. The
+    # response of the generation that resumes it repeats the restored tool
+    # results, so they are persisted with the final answer.
     def persist_generation_to_context
       return unless context && generation_response
 
