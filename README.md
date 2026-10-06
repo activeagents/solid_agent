@@ -94,6 +94,28 @@ the user turn and the response as the assistant turn, both after the
 provider call — so reach for `add_conversation_user_message` only with
 `auto_save: false`, or the turn is stored twice.
 
+A generation that pauses for user input (its response answers
+`awaiting_input?` with true) persists only its prompt, the user turn. The
+paused response writes no generation record, assistant row or tool rows. The
+generation that resumes it persists the tool results and the final answer,
+and skips its own prompt, which replays the user turn already stored. Tool
+results are deduped by `tool_call_id`, so each is stored once.
+
+The resumed generation writes to whichever context it holds, so it must load
+the paused generation's context. Give `has_context` a `contextual:` param
+that names the same record on both runs, or load the context by id in the
+action (`load_conversation(context_id: ...)`).
+Without either, each agent instance creates its own anonymous context, and
+the user turn and the answer land in two different contexts.
+
+The agent counts as resuming when the framework's `resuming?` returns true.
+A host that replays a stored conversation itself sets the flag from inside
+the agent:
+
+```ruby
+before_generation { self.resuming_generation = params[:checkpoint].present? }
+```
+
 > **Naming a context also names its models.** `has_context :conversation`
 > infers `Conversation`, `ConversationMessage` and `ConversationGeneration`,
 > not the `AgentContext` family the installer wrote — hence `class_name:`

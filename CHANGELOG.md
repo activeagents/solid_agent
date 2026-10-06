@@ -40,7 +40,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`CHANGELOG.md`**, which the gemspec already advertised.
 
+- **`HasContext#resuming_generation?`** answers whether a generation resumes
+  one that paused for user input: true when the agent defines a public
+  `resuming?` that returns true, or after `self.resuming_generation = true`.
+  The writer is for a host that replays a stored conversation itself. Both
+  are private, so neither becomes one of the agent's actions.
+
 ### Fixed
+
+- **`HasContext` skips persisting the response of a generation paused for
+  user input, and the prompt of the generation that resumes it.** A response
+  answering `awaiting_input?` with true is returned untouched: no generation
+  record, no assistant row and no tool rows, because its last message is an
+  unfinished turn. The paused generation's prompt, the user turn, is still
+  persisted. The resumed generation skips prompt persistence, because its
+  prompt replays that turn, and persists its response as usual. Both checks
+  are duck-typed, so framework releases without a pause behave as before.
+
+- Tool messages are now deduped by `tool_call_id` within one response's
+  stack as well as against rows already on the context, so a stack that
+  repeats a call persists it once even when the context's `messages` scope
+  cannot see rows written earlier in the same pass.
 
 - `SolidAgent.context_class`, `message_class` and `generation_class` had no
   consumers while the shipped initializer template told hosts to set them, so
