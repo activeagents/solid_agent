@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- **The generated migrations run on SQLite and MySQL.** Every migration
+  template declared its JSON columns as `jsonb`, a PostgreSQL type, so
+  `rails generate solid_agent:install` (and `solid_agent:context`,
+  `solid_agent:reasons`) wrote migrations that aborted on SQLite with
+  `undefined method 'jsonb'`, including on a fresh Rails app. The templates
+  now choose the type when the migration runs: `jsonb` on PostgreSQL, `json`
+  elsewhere, and no column default on MySQL, which rejects one on JSON
+  columns. Migrations already generated are unaffected; an app that edited
+  them by hand to `json` needs no change.
+
 ## [0.2.1] - 2026-10-07
 
 A patch release for activeagent 1.9, whose generations can pause to ask the

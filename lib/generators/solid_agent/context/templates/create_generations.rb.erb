@@ -23,17 +23,17 @@ class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= 
       t.integer :reasoning_tokens, default: 0
 
       # Tool calls made in this generation
-      t.jsonb :tool_calls, default: []
+      t.column :tool_calls, json_type, **json_default([])
 
       # Raw response from the provider
-      t.jsonb :raw_response
+      t.column :raw_response, json_type
 
       # Timing
       t.float :duration_seconds
 
       # Telemetry correlation + provenance snapshot
       t.string :trace_id
-      t.jsonb :provenance, default: {}
+      t.column :provenance, json_type, **json_default({})
 
       t.timestamps
     end
@@ -42,5 +42,34 @@ class Create<%= generation_class_name.pluralize %> < ActiveRecord::Migration<%= 
     add_index :<%= generation_table_name %>, :finish_reason
     add_index :<%= generation_table_name %>, :trace_id
     add_index :<%= generation_table_name %>, [:<%= file_name %>_id, :created_at]
+  end
+
+  private
+
+  # jsonb on PostgreSQL, json elsewhere: SQLite and MySQL have no jsonb type,
+  # and SQLite aborts the migration on it.
+  def json_type
+    @json_type ||= postgres? ? :jsonb : :json
+  end
+
+  # MySQL rejects a default on a JSON column outright ("BLOB, TEXT, GEOMETRY or
+  # JSON column can't have a default value"), which aborts the migration, so
+  # the column is created without one there. The gem assigns every JSON column
+  # it writes and reads them nil-safely, so a NULL reads as the empty default
+  # would.
+  def json_default(value)
+    mysql? ? {} : { default: value }
+  end
+
+  def postgres?
+    adapter_name.include?("postgres")
+  end
+
+  def mysql?
+    adapter_name.include?("mysql") || adapter_name.include?("trilogy")
+  end
+
+  def adapter_name
+    connection.adapter_name.to_s.downcase
   end
 end
