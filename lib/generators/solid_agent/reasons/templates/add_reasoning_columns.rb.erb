@@ -4,9 +4,38 @@ class AddReasoningTo<%= @table_name.camelize %> < ActiveRecord::Migration[7.0]
   def change
     add_column :<%= @table_name %>, :<%= @content_column %>, :text
     add_column :<%= @table_name %>, :<%= @tokens_column %>, :integer, default: 0
-    add_column :<%= @table_name %>, :<%= @metadata_column %>, :jsonb, default: {}
+    add_column :<%= @table_name %>, :<%= @metadata_column %>, json_type, **json_default({})
 
     add_index :<%= @table_name %>, :<%= @tokens_column %>,
       name: "index_<%= @table_name %>_on_<%= @tokens_column %>"
+  end
+
+  private
+
+  # jsonb on PostgreSQL, json elsewhere: SQLite and MySQL have no jsonb type,
+  # and SQLite aborts the migration on it.
+  def json_type
+    @json_type ||= postgres? ? :jsonb : :json
+  end
+
+  # MySQL rejects a default on a JSON column outright ("BLOB, TEXT, GEOMETRY or
+  # JSON column can't have a default value"), which aborts the migration, so
+  # the column is created without one there. The gem assigns every JSON column
+  # it writes and reads them nil-safely, so a NULL reads as the empty default
+  # would.
+  def json_default(value)
+    mysql? ? {} : { default: value }
+  end
+
+  def postgres?
+    adapter_name.include?("postgres")
+  end
+
+  def mysql?
+    adapter_name.include?("mysql") || adapter_name.include?("trilogy")
+  end
+
+  def adapter_name
+    connection.adapter_name.to_s.downcase
   end
 end
