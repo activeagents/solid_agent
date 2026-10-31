@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.2] - 2026-10-31
+
+A patch release so the install generators work on SQLite and MySQL.
+
 ### Fixed
 
 - **The generated migrations run on SQLite and MySQL.** Every migration
